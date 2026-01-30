@@ -27,6 +27,10 @@ data/cache/
 
 # Models (large files)
 models/
+*.dylib
+*.bin
+*.pt
+*.pth
 
 # Jupyter
 .ipynb_checkpoints/
@@ -38,3 +42,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Git large objects
+*.pack
