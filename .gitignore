@@ -1,4 +1,40 @@
+# Environment
+.env
 .venv/
+venv/
+env/
+
+# Python
 __pycache__/
-*.ipynb_checkpoints/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data
+data/vector_db/
+data/cache/
+*.db
+
+# Models (large files)
+models/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

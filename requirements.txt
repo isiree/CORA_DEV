@@ -1,5 +1,38 @@
-langchain
-langchain-core
-langchain-community
-pypdf
-pymupdf
+# Core LangChain
+langchain>=0.3.27
+langchain-core>=0.3.79
+langchain-community>=0.3.31
+langchain-groq>=0.3.8
+
+# Vector DB & Embeddings
+chromadb>=1.1.1
+sentence-transformers==3.0.1
+faiss-cpu==1.8.0
+
+# PDF Processing
+pymupdf>=1.26.5
+pypdf>=6.1.1
+
+# ML/DL
+torch==2.4.0
+
+# Jupyter
+ipykernel>=7.0.0
+
+# Environment & Config
+python-dotenv>=1.0.0
+
+# HTTP Requests (for APIs)
+requests>=2.31.0
+httpx>=0.25.0
+
+# PDF Generation (for demo data)
+fpdf2>=2.7.0
+
+# Additional dependencies
+sqlalchemy>=2.0.0
+cryptography>=42.0.0
+azure-mgmt-costmanagement>=4.0.0
+azure-identity>=1.15.0
+azure-devops>=7.1.0
+flask>=3.0.0
