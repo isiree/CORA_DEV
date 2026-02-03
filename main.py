@@ -51,12 +51,9 @@ def check_vector_db():
 
 def check_api_mode():
     """Check if using real APIs or mock data."""
-    azure_configured = all([
-        os.getenv("AZURE_TENANT_ID"),
-        os.getenv("AZURE_CLIENT_ID"),
-        os.getenv("AZURE_CLIENT_SECRET"),
-        os.getenv("AZURE_SUBSCRIPTION_ID")
-    ])
+    from src.providers import is_live_mode
+    
+    azure_live = is_live_mode() and os.getenv("AZURE_SUBSCRIPTION_ID")
     
     gitlab_configured = all([
         os.getenv("GITLAB_TOKEN"),
@@ -64,7 +61,7 @@ def check_api_mode():
     ])
     
     print("\n📡 API Mode Status:")
-    if azure_configured:
+    if azure_live:
         print("   ✅ Azure Cost Management: LIVE (real data)")
     else:
         print("   🎭 Azure Cost Management: MOCK DATA (demo mode)")
@@ -74,11 +71,10 @@ def check_api_mode():
     else:
         print("   🎭 GitLab CI/CD: MOCK DATA (demo mode)")
     
-    if not azure_configured or not gitlab_configured:
+    if not azure_live or not gitlab_configured:
         print("\n   ℹ️  Mock data simulates ABC Company's cloud spending.")
         print("   ℹ️  This is perfect for demo/testing purposes!")
         print("   ℹ️  Add real credentials in .env for production use.")
-
 
 def run_demo():
     """Run interactive demo."""
