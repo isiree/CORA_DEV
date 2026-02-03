@@ -45,3 +45,15 @@ logs/
 
 # Git large objects
 *.pack
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform.lock.hcl
+
+# Secrets
+*.pem
+*.key
