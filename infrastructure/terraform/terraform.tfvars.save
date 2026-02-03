@@ -1,0 +1,8 @@
+subscription_id = "2d3c86df-0fd5-41aa-827a-ff1529ed57dc"
+location        = "australiaeast"
+environment     = "dev"
+monthly_budget  = 35
+alert_email     = "isir.20221073@iit.ac.lk"
+
+
+
