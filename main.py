@@ -64,6 +64,7 @@ def check_api_mode():
         print("   ✅ Azure Cost Management: LIVE (real data)")
     else:
         print("   🎭 Azure Cost Management: MOCK DATA (demo mode)")
+        print("      ℹ️  For Azure CLI auth, ensure you've run 'az login'")
     
     # GitLab status - now correctly checks USE_LIVE_DATA
     if gitlab_live:

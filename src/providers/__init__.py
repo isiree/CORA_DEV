@@ -53,9 +53,12 @@ def is_azure_live_mode() -> bool:
     """
     Check if Azure Cost Management should use live API data.
     
-    Requires:
+    For Azure CLI authentication (student subscriptions), only requires:
         - USE_LIVE_DATA=true
-        - All Azure credentials configured
+        - AZURE_SUBSCRIPTION_ID
+    
+    For SPN authentication, also requires:
+        - AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
     
     Returns:
         True if live Azure mode is enabled and configured.
@@ -63,13 +66,21 @@ def is_azure_live_mode() -> bool:
     if not is_live_mode():
         return False
     
-    required_vars = [
-        "AZURE_SUBSCRIPTION_ID",
-        "AZURE_TENANT_ID", 
-        "AZURE_CLIENT_ID",
-        "AZURE_CLIENT_SECRET"
-    ]
-    return all(os.getenv(var) for var in required_vars)
+    # Minimum requirement: subscription ID
+    if not os.getenv("AZURE_SUBSCRIPTION_ID"):
+        return False
+    
+    # Check if using CLI auth or SPN auth
+    has_spn_creds = all([
+        os.getenv("AZURE_TENANT_ID"),
+        os.getenv("AZURE_CLIENT_ID"),
+        os.getenv("AZURE_CLIENT_SECRET")
+    ])
+    
+    use_cli_auth = os.getenv("AZURE_USE_CLI_AUTH", "true").lower() == "true"
+    
+    # Either SPN creds OR CLI auth enabled
+    return has_spn_creds or use_cli_auth
 
 
 def is_gitlab_live_mode() -> bool:
@@ -93,6 +104,8 @@ def is_gitlab_live_mode() -> bool:
     return all(os.getenv(var) for var in required_vars)
 
 
+_cost_provider_instance = None
+
 def get_cost_provider():
     """
     Get the appropriate cost provider based on configuration.
@@ -101,9 +114,29 @@ def get_cost_provider():
         AzureCostDataProvider if live mode enabled and configured,
         MockCostDataProvider otherwise.
     """
+    global _cost_provider_instance
+    
+    if _cost_provider_instance is not None:
+        return _cost_provider_instance
+    
     if is_azure_live_mode():
-        return AzureCostDataProvider()
-    return MockCostDataProvider()
+        try:
+            provider = AzureCostDataProvider()
+            # Test if provider works
+            if hasattr(provider, 'is_available') and not provider.is_available():
+                logger.warning("⚠️ Azure provider not available, falling back to mock")
+                _cost_provider_instance = MockCostDataProvider()
+            else:
+                logger.info("✅ Using LIVE Azure Cost API")
+                _cost_provider_instance = provider
+        except Exception as e:
+            logger.warning(f"⚠️ Azure provider error: {e}, falling back to mock")
+            _cost_provider_instance = MockCostDataProvider()
+    else:
+        logger.info("🟡 Using MOCK cost data provider")
+        _cost_provider_instance = MockCostDataProvider()
+    
+    return _cost_provider_instance
 
 
 def get_pipeline_provider():

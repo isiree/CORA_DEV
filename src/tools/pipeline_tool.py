@@ -16,7 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
-from ..providers import is_gitlab_live_mode
+from ..providers import is_gitlab_live_mode, get_pipeline_provider
 
 load_dotenv()
 
@@ -201,33 +201,29 @@ Provide analysis focused on cost impact:""")
     def _get_live_data(self, team_name: str, days: int = 7) -> dict:
         """
         Fetch live data from GitLab API.
-        
-        Args:
-            team_name: Name of the team
-            days: Number of days to look back
-        
-        Returns:
-            Dictionary with pipeline data from GitLab
         """
         try:
-            from ..providers import get_pipeline_provider
             provider = get_pipeline_provider()
+            normalized_team = self._normalize_team_name(team_name)
+            result = provider.get_pipelines(team_name=normalized_team, days=days)
             
-            # Get pipelines from the live provider
-            pipelines_data = provider.get_pipelines(days=days)
+            if not result.get("success", False):
+                return result
             
-            # Transform to expected format
+            pipelines = result.get("pipelines", [])
+            stats = result.get("statistics", {})
+            
             return {
                 "success": True,
-                "team": team_name,
-                "project": f"GitLab Project {os.getenv('GITLAB_PROJECT_ID', 'Unknown')}",
-                "period": f"Last {days} days",
-                "retrieved_at": datetime.now().isoformat(),
+                "team": result.get("team", team_name),
+                "project": result.get("project", f"GitLab Project {os.getenv('GITLAB_PROJECT_ID', 'Unknown')}"),
+                "period": result.get("period", f"Last {days} days"),
+                "retrieved_at": result.get("retrieved_at", datetime.now().isoformat()),
                 "statistics": {
-                    "total_deployments": len(pipelines_data.get("pipelines", [])),
-                    "failed_deployments": sum(1 for p in pipelines_data.get("pipelines", []) if p.get("status") == "failed"),
-                    "rollbacks": 0,  # Would need additional API calls to determine
-                    "success_rate": f"{pipelines_data.get('stats', {}).get('success_rate', 0):.1f}%"
+                    "total_deployments": stats.get("total_pipelines", len(pipelines)),
+                    "failed_deployments": stats.get("failed", 0),
+                    "rollbacks": 0,
+                    "success_rate": stats.get("success_rate", "0%")
                 },
                 "recent_pipelines": [
                     {
@@ -236,13 +232,13 @@ Provide analysis focused on cost impact:""")
                         "created_at": p.get("created_at"),
                         "duration_seconds": p.get("duration", 0),
                         "ref": p.get("ref"),
-                        "commit_message": p.get("commit_title", "No message"),
-                        "stages": [],
-                        "jobs": []
+                        "commit_message": p.get("commit_message", "No message"),
+                        "stages": p.get("stages", []),
+                        "jobs": p.get("jobs", [])
                     }
-                    for p in pipelines_data.get("pipelines", [])[:5]
+                    for p in pipelines[:10]
                 ],
-                "infrastructure_changes": []  # Would need commit message analysis
+                "infrastructure_changes": []
             }
         except Exception as e:
             return {

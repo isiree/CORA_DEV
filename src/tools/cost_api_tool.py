@@ -14,7 +14,7 @@ from langchain_core.tools import tool
 from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
-from ..providers import get_cost_provider, is_live_mode
+from ..providers import get_cost_provider, is_live_mode, is_azure_live_mode
 
 load_dotenv()
 
@@ -85,6 +85,16 @@ class CostAPITool:
         if hasattr(self.provider, 'get_container_instances'):
             return self.provider.get_container_instances(team_name)
         return {"success": False, "error": "Resource discovery not available in mock mode"}
+    
+    def is_live_mode(self) -> bool:
+        """Check if using live Azure API."""
+        return is_azure_live_mode()
+    
+    def get_mode_indicator(self) -> str:
+        """Get mode indicator for output."""
+        if self.is_live_mode():
+            return "LIVE 🟢"
+        return "MOCK 🟡"
 
 
 # Singleton instance
@@ -228,7 +238,7 @@ def cost_api_tool(query: str) -> str:
     tool_instance = get_cost_tool()
     query_lower = query.lower()
     data_source = tool_instance.provider.provider_name.upper()
-    mode_indicator = "🔴 LIVE" if is_live_mode() else "🟡 MOCK"
+    mode_indicator = tool_instance.get_mode_indicator()
     
     # Extract team name from query
     team = _extract_team_from_query(query_lower, tool_instance.provider)
