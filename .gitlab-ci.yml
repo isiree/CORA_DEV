@@ -3,7 +3,6 @@
 # Supports both MOCK mode (fake logs) and LIVE mode (real terraform)
 # ============================================
 
-
 stages:
   - validate
   - plan
@@ -12,15 +11,12 @@ stages:
   - mock
   - destroy
 
-
 variables:
   TF_ROOT: ${CI_PROJECT_DIR}/infrastructure/terraform
-  # For LIVE mode - set these in GitLab CI/CD Variables
   ARM_CLIENT_ID: ${AZURE_CLIENT_ID}
   ARM_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
   ARM_SUBSCRIPTION_ID: ${AZURE_SUBSCRIPTION_ID}
   ARM_TENANT_ID: ${AZURE_TENANT_ID}
-
 
 # ============================================
 # DEFAULT - For Terraform jobs
@@ -31,7 +27,6 @@ variables:
     - cd ${TF_ROOT}
     - terraform init -backend=false
 
-
 # ============================================
 # VALIDATE STAGE
 # ============================================
@@ -39,28 +34,26 @@ validate:
   extends: .terraform_base
   stage: validate
   script:
-    - echo "🔍 Validating Terraform configuration..."
+    - echo "Validating Terraform configuration..."
     - terraform validate
     - terraform fmt -check -diff || true
-    - echo "✅ Validation complete"
+    - echo "Validation complete"
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-
 # ============================================
-# PLAN STAGE (validation only - no Azure connection needed)
+# PLAN STAGE
 # ============================================
 plan:
   extends: .terraform_base
   stage: plan
   script:
-    - echo "📋 Running terraform plan (validation mode)..."
+    - echo "Running terraform plan (validation mode)..."
     - terraform plan -input=false || echo "Plan requires Azure credentials"
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
     - if: $ACTION == "plan"
-
 
 # ============================================
 # MOCK STAGES - Generate fake pipeline logs for testing
@@ -69,41 +62,29 @@ mock_deploy:
   stage: mock
   image: alpine:latest
   script:
-    - echo "🎭 MOCK MODE - Simulating infrastructure deployment..."
+    - echo "MOCK MODE - Simulating infrastructure deployment..."
     - echo ""
-    - echo "[$(date -Iseconds)] Starting mock terraform apply..."
+    - TIMESTAMP=$(date -Iseconds)
+    - echo "[$TIMESTAMP] Starting mock terraform apply..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_resource_group.main: Refreshing state..."
+    - echo "[$(date -Iseconds)] azurerm_resource_group.main Refreshing state..."
     - sleep 1
-    - echo "[$(date -Iseconds)] azurerm_storage_account.release: Creating..."
+    - echo "[$(date -Iseconds)] azurerm_storage_account.release Creating..."
     - sleep 3
-    - echo "[$(date -Iseconds)] azurerm_storage_account.release: Creation complete after 3s"
-    - echo "[$(date -Iseconds)] azurerm_storage_account.ci: Creating..."
+    - echo "[$(date -Iseconds)] azurerm_storage_account.release Creation complete after 3s"
+    - echo "[$(date -Iseconds)] azurerm_storage_account.ci Creating..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_storage_account.ci: Creation complete after 2s"
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Creating..."
+    - echo "[$(date -Iseconds)] azurerm_storage_account.ci Creation complete after 2s"
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Creating..."
     - sleep 4
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Creation complete after 4s"
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Creation complete after 4s"
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: apply | STATUS: success | TEAM: all | RESOURCES: 6 | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN}"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION apply STATUS success TEAM all RESOURCES 6 PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN}"
     - echo ""
-    - echo "✅ Mock deployment complete!"
+    - echo "Mock deployment complete!"
     - echo ""
-    - echo "Apply complete! Resources: 6 added, 0 changed, 0 destroyed."
-    - |
-      cat << EOF > deployment_summary.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "apply",
-        "status": "success",
-        "mode": "mock",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "resources_affected": 6,
-        "teams": ["release-team", "ci-team", "cloudops-team"],
-        "estimated_cost": "$$15.50/month"
-      }
-      EOF
+    - echo "Apply complete! Resources 6 added, 0 changed, 0 destroyed."
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"apply","status":"success","mode":"mock","triggered_by":"'${GITLAB_USER_LOGIN}'","resources_affected":6,"estimated_cost":"15.50"}' > deployment_summary.json
     - cat deployment_summary.json
   artifacts:
     paths:
@@ -112,41 +93,24 @@ mock_deploy:
   rules:
     - if: $ACTION == "mock_deploy"
 
-
 mock_scale_up:
   stage: mock
   image: alpine:latest
   script:
-    - echo "🎭 MOCK MODE - Simulating scale UP operation..."
+    - echo "MOCK MODE - Simulating scale UP operation..."
     - echo ""
     - echo "[$(date -Iseconds)] Starting mock scale up..."
-    - echo "[$(date -Iseconds)] Current configuration: container_cpu=0.25, container_memory=0.5"
-    - echo "[$(date -Iseconds)] Target configuration: container_cpu=0.5, container_memory=1.0"
+    - echo "[$(date -Iseconds)] Current config container_cpu=0.25, container_memory=0.5"
+    - echo "[$(date -Iseconds)] Target config container_cpu=0.5, container_memory=1.0"
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Modifying..."
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Modifying..."
     - sleep 3
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Modifications complete after 3s"
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Modifications complete after 3s"
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: scale_up | STATUS: success | TEAM: ci-team | RESOURCES: container_cpu=0.5,container_memory=1.0 | EST_COST_CHANGE: +$$5/month | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN}"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION scale_up STATUS success TEAM ci-team RESOURCES container_cpu=0.5,container_memory=1.0 EST_COST_CHANGE +5/month PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN}"
     - echo ""
-    - echo "✅ Mock scale up complete!"
-    - |
-      cat << EOF > scale_summary.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "scale_up",
-        "status": "success",
-        "mode": "mock",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "team": "ci-team",
-        "changes": {
-          "container_cpu": {"from": "0.25", "to": "0.5"},
-          "container_memory": {"from": "0.5", "to": "1.0"}
-        },
-        "estimated_cost_change": "+$$5.00/month"
-      }
-      EOF
+    - echo "Mock scale up complete!"
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"scale_up","status":"success","mode":"mock","triggered_by":"'${GITLAB_USER_LOGIN}'","team":"ci-team","cost_change":"+5.00/month"}' > scale_summary.json
     - cat scale_summary.json
   artifacts:
     paths:
@@ -155,41 +119,24 @@ mock_scale_up:
   rules:
     - if: $ACTION == "mock_scale_up"
 
-
 mock_scale_down:
   stage: mock
   image: alpine:latest
   script:
-    - echo "🎭 MOCK MODE - Simulating scale DOWN operation..."
+    - echo "MOCK MODE - Simulating scale DOWN operation..."
     - echo ""
     - echo "[$(date -Iseconds)] Starting mock scale down..."
-    - echo "[$(date -Iseconds)] Current configuration: container_cpu=0.5, container_memory=1.0"
-    - echo "[$(date -Iseconds)] Target configuration: container_cpu=0.25, container_memory=0.5"
+    - echo "[$(date -Iseconds)] Current config container_cpu=0.5, container_memory=1.0"
+    - echo "[$(date -Iseconds)] Target config container_cpu=0.25, container_memory=0.5"
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Modifying..."
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Modifying..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Modifications complete after 2s"
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Modifications complete after 2s"
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: scale_down | STATUS: success | TEAM: ci-team | RESOURCES: container_cpu=0.25,container_memory=0.5 | EST_COST_CHANGE: -$$3/month | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN}"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION scale_down STATUS success TEAM ci-team RESOURCES container_cpu=0.25,container_memory=0.5 EST_COST_CHANGE -3/month PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN}"
     - echo ""
-    - echo "✅ Mock scale down complete!"
-    - |
-      cat << EOF > scale_summary.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "scale_down",
-        "status": "success",
-        "mode": "mock",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "team": "ci-team",
-        "changes": {
-          "container_cpu": {"from": "0.5", "to": "0.25"},
-          "container_memory": {"from": "1.0", "to": "0.5"}
-        },
-        "estimated_cost_change": "-$$3.00/month"
-      }
-      EOF
+    - echo "Mock scale down complete!"
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"scale_down","status":"success","mode":"mock","triggered_by":"'${GITLAB_USER_LOGIN}'","team":"ci-team","cost_change":"-3.00/month"}' > scale_summary.json
     - cat scale_summary.json
   artifacts:
     paths:
@@ -198,57 +145,54 @@ mock_scale_down:
   rules:
     - if: $ACTION == "mock_scale_down"
 
-
 mock_destroy:
   stage: mock
   image: alpine:latest
   script:
-    - echo "🎭 MOCK MODE - Simulating infrastructure destroy..."
+    - echo "MOCK MODE - Simulating infrastructure destroy..."
     - echo ""
     - echo "[$(date -Iseconds)] Starting mock terraform destroy..."
     - sleep 1
-    - echo "[$(date -Iseconds)] azurerm_linux_function_app.cloudops: Destroying..."
+    - echo "[$(date -Iseconds)] azurerm_linux_function_app.cloudops Destroying..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_linux_function_app.cloudops: Destruction complete"
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Destroying..."
+    - echo "[$(date -Iseconds)] azurerm_linux_function_app.cloudops Destruction complete"
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Destroying..."
     - sleep 3
-    - echo "[$(date -Iseconds)] azurerm_container_group.ci: Destruction complete"
-    - echo "[$(date -Iseconds)] azurerm_storage_account.release: Destroying..."
+    - echo "[$(date -Iseconds)] azurerm_container_group.ci Destruction complete"
+    - echo "[$(date -Iseconds)] azurerm_storage_account.release Destroying..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_storage_account.release: Destruction complete"
+    - echo "[$(date -Iseconds)] azurerm_storage_account.release Destruction complete"
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: destroy | STATUS: success | TEAM: all | EST_COST_CHANGE: -$$15/month | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN}"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION destroy STATUS success TEAM all EST_COST_CHANGE -15/month PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN}"
     - echo ""
-    - echo "✅ Mock destroy complete!"
+    - echo "Mock destroy complete!"
     - echo ""
-    - echo "Destroy complete! Resources: 0 added, 0 changed, 6 destroyed."
+    - echo "Destroy complete! Resources 0 added, 0 changed, 6 destroyed."
   rules:
     - if: $ACTION == "mock_destroy"
-
 
 mock_failed_deploy:
   stage: mock
   image: alpine:latest
   script:
-    - echo "🎭 MOCK MODE - Simulating FAILED deployment..."
+    - echo "MOCK MODE - Simulating FAILED deployment..."
     - echo ""
     - echo "[$(date -Iseconds)] Starting mock terraform apply..."
     - sleep 2
-    - echo "[$(date -Iseconds)] azurerm_resource_group.main: Refreshing state..."
+    - echo "[$(date -Iseconds)] azurerm_resource_group.main Refreshing state..."
     - sleep 1
-    - echo "[$(date -Iseconds)] azurerm_storage_account.release: Creating..."
+    - echo "[$(date -Iseconds)] azurerm_storage_account.release Creating..."
     - sleep 2
-    - echo "[$(date -Iseconds)] Error: creating Storage Account: storage.AccountsClient#Create: Failure"
-    - echo "[$(date -Iseconds)] Error: Code=\"StorageAccountAlreadyTaken\""
+    - echo "[$(date -Iseconds)] Error creating Storage Account storage.AccountsClient Create Failure"
+    - echo "[$(date -Iseconds)] Error Code=StorageAccountAlreadyTaken"
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: apply | STATUS: failed | TEAM: release-team | ERROR: StorageAccountAlreadyTaken | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN}"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION apply STATUS failed TEAM release-team ERROR StorageAccountAlreadyTaken PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN}"
     - echo ""
-    - echo "❌ Mock deployment FAILED!"
+    - echo "Mock deployment FAILED!"
     - exit 1
   rules:
     - if: $ACTION == "mock_failed_deploy"
   allow_failure: true
-
 
 # ============================================
 # TRACK STAGES - Record local Terraform operations
@@ -257,26 +201,14 @@ track_apply:
   stage: apply
   image: alpine:latest
   script:
-    - echo "📝 Recording local terraform apply..."
+    - echo "Recording local terraform apply..."
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: apply | STATUS: success | TEAM: ${TEAM:-all} | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN} | MODE: local"
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION apply STATUS success TEAM ${TEAM:-all} PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN} MODE local"
     - echo ""
-    - |
-      cat << EOF > tracked_change.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "apply",
-        "status": "success",
-        "mode": "tracked_local",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "team": "${TEAM:-all}",
-        "notes": "${NOTES:-Applied locally via terraform apply}"
-      }
-      EOF
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"apply","status":"success","mode":"tracked_local","triggered_by":"'${GITLAB_USER_LOGIN}'","team":"'${TEAM:-all}'"}' > tracked_change.json
     - cat tracked_change.json
     - echo ""
-    - echo "✅ Local apply recorded in GitLab"
+    - echo "Local apply recorded in GitLab"
   artifacts:
     paths:
       - tracked_change.json
@@ -284,30 +216,17 @@ track_apply:
   rules:
     - if: $ACTION == "track_apply"
 
-
 track_scale_up:
   stage: scale
   image: alpine:latest
   script:
-    - echo "📝 Recording local scale UP operation..."
+    - echo "Recording local scale UP operation..."
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: scale_up | STATUS: success | TEAM: ci-team | RESOURCES: container_cpu=0.5,container_memory=1.0 | EST_COST_CHANGE: +$$5/month | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN} | MODE: local"
-    - |
-      cat << EOF > tracked_change.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "scale_up",
-        "status": "success",
-        "mode": "tracked_local",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "team": "ci-team",
-        "estimated_cost_change": "+$$5.00/month"
-      }
-      EOF
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION scale_up STATUS success TEAM ci-team RESOURCES container_cpu=0.5,container_memory=1.0 EST_COST_CHANGE +5/month PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN} MODE local"
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"scale_up","status":"success","mode":"tracked_local","triggered_by":"'${GITLAB_USER_LOGIN}'","team":"ci-team","cost_change":"+5.00/month"}' > tracked_change.json
     - cat tracked_change.json
     - echo ""
-    - echo "✅ Local scale up recorded in GitLab"
+    - echo "Local scale up recorded in GitLab"
   artifacts:
     paths:
       - tracked_change.json
@@ -315,37 +234,23 @@ track_scale_up:
   rules:
     - if: $ACTION == "track_scale_up"
 
-
 track_scale_down:
   stage: scale
   image: alpine:latest
   script:
-    - echo "📝 Recording local scale DOWN operation..."
+    - echo "Recording local scale DOWN operation..."
     - echo ""
-    - echo "INFRA_CHANGE: $(date -Iseconds) | ACTION: scale_down | STATUS: success | TEAM: ci-team | RESOURCES: container_cpu=0.25,container_memory=0.5 | EST_COST_CHANGE: -$$3/month | PIPELINE: ${CI_PIPELINE_ID} | USER: ${GITLAB_USER_LOGIN} | MODE: local"
-    - |
-      cat << EOF > tracked_change.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "action": "scale_down",
-        "status": "success",
-        "mode": "tracked_local",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "team": "ci-team",
-        "estimated_cost_change": "-$$3.00/month"
-      }
-      EOF
+    - echo "INFRA_CHANGE $(date -Iseconds) ACTION scale_down STATUS success TEAM ci-team RESOURCES container_cpu=0.25,container_memory=0.5 EST_COST_CHANGE -3/month PIPELINE ${CI_PIPELINE_ID} USER ${GITLAB_USER_LOGIN} MODE local"
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","action":"scale_down","status":"success","mode":"tracked_local","triggered_by":"'${GITLAB_USER_LOGIN}'","team":"ci-team","cost_change":"-3.00/month"}' > tracked_change.json
     - cat tracked_change.json
     - echo ""
-    - echo "✅ Local scale down recorded in GitLab"
+    - echo "Local scale down recorded in GitLab"
   artifacts:
     paths:
       - tracked_change.json
     expire_in: 30 days
   rules:
     - if: $ACTION == "track_scale_down"
-
 
 # ============================================
 # COST ESTIMATE
@@ -354,39 +259,12 @@ cost_estimate:
   stage: validate
   image: alpine:latest
   script:
-    - echo "💰 Generating infrastructure cost estimate..."
+    - echo "Generating infrastructure cost estimate..."
     - echo ""
-    - |
-      cat << EOF > cost_report.json
-      {
-        "timestamp": "$(date -Iseconds)",
-        "pipeline_id": "${CI_PIPELINE_ID}",
-        "triggered_by": "${GITLAB_USER_LOGIN}",
-        "estimated_monthly_cost": {
-          "total": 15.50,
-          "by_team": {
-            "release-team": {
-              "storage_account": 1.00,
-              "total": 1.00
-            },
-            "ci-team": {
-              "storage_account": 1.00,
-              "container_instance": 8.00,
-              "total": 9.00
-            },
-            "cloudops-team": {
-              "storage_account": 1.00,
-              "function_app": 2.00,
-              "app_service_plan": 2.50,
-              "total": 5.50
-            }
-          }
-        }
-      }
-      EOF
+    - echo '{"timestamp":"'$(date -Iseconds)'","pipeline_id":"'${CI_PIPELINE_ID}'","triggered_by":"'${GITLAB_USER_LOGIN}'","estimated_monthly_cost":{"total":15.50,"release_team":1.00,"ci_team":9.00,"cloudops_team":5.50}}' > cost_report.json
     - cat cost_report.json
     - echo ""
-    - echo "PIPELINE_LOG: $(date -Iseconds) | STAGE: cost_estimate | STATUS: success | EST_TOTAL: $$15.50/month"
+    - echo "PIPELINE_LOG $(date -Iseconds) STAGE cost_estimate STATUS success EST_TOTAL 15.50/month"
   artifacts:
     paths:
       - cost_report.json
