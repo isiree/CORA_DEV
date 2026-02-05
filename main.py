@@ -51,30 +51,39 @@ def check_vector_db():
 
 def check_api_mode():
     """Check if using real APIs or mock data."""
-    from src.providers import is_live_mode
+    from src.providers import is_live_mode, is_azure_live_mode, is_gitlab_live_mode
     
-    azure_live = is_live_mode() and os.getenv("AZURE_SUBSCRIPTION_ID")
-    
-    gitlab_configured = all([
-        os.getenv("GITLAB_TOKEN"),
-        os.getenv("GITLAB_PROJECT_ID")
-    ])
+    live_mode = is_live_mode()
+    azure_live = is_azure_live_mode()
+    gitlab_live = is_gitlab_live_mode()
     
     print("\n📡 API Mode Status:")
+    
+    # Azure status
     if azure_live:
         print("   ✅ Azure Cost Management: LIVE (real data)")
     else:
         print("   🎭 Azure Cost Management: MOCK DATA (demo mode)")
     
-    if gitlab_configured:
+    # GitLab status - now correctly checks USE_LIVE_DATA
+    if gitlab_live:
         print("   ✅ GitLab CI/CD: LIVE (real data)")
     else:
         print("   🎭 GitLab CI/CD: MOCK DATA (demo mode)")
     
-    if not azure_live or not gitlab_configured:
-        print("\n   ℹ️  Mock data simulates ABC Company's cloud spending.")
-        print("   ℹ️  This is perfect for demo/testing purposes!")
-        print("   ℹ️  Add real credentials in .env for production use.")
+    # Informational messages
+    if not live_mode:
+        print("\n   ℹ️  USE_LIVE_DATA=false in .env (demo mode enabled)")
+        print("   ℹ️  Mock data simulates ABC Company's cloud spending.")
+        print("   ℹ️  Set USE_LIVE_DATA=true for production use.")
+    elif not azure_live or not gitlab_live:
+        print("\n   ℹ️  Live mode enabled but some credentials missing:")
+        if not azure_live:
+            print("      - Azure: Missing AZURE_TENANT_ID, AZURE_CLIENT_ID, or AZURE_CLIENT_SECRET")
+        if not gitlab_live:
+            print("      - GitLab: Missing GITLAB_TOKEN or GITLAB_PROJECT_ID")
+        print("   ℹ️  Add missing credentials in .env for full live mode.")
+
 
 def run_demo():
     """Run interactive demo."""

@@ -8,19 +8,29 @@ The USE_LIVE_DATA environment variable controls which mode is used.
 import os
 import logging
 
-# Import providers
-from .azure_cost_provider import AzureCostProvider
-from .mock_cost_provider import MockCostProvider
+# Import base classes
+from .base_provider import CostDataProvider
+from .base_pipeline_provider import PipelineDataProvider
+
+# Import providers with correct class names
+from .azure_cost_provider import AzureCostDataProvider
+from .mock_cost_provider import MockCostDataProvider
 from .gitlab_pipeline_provider import GitLabPipelineProvider
-from .mock_pipeline_provider import MockPipelineProvider
+from .mock_pipeline_provider import MockPipelineDataProvider
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "AzureCostProvider",
-    "MockCostProvider",
+    # Base classes
+    "CostDataProvider",
+    "PipelineDataProvider",
+    # Cost providers
+    "AzureCostDataProvider",
+    "MockCostDataProvider",
+    # Pipeline providers
     "GitLabPipelineProvider",
-    "MockPipelineProvider",
+    "MockPipelineDataProvider",
+    # Helper functions
     "is_live_mode",
     "is_azure_live_mode",
     "is_gitlab_live_mode",
@@ -88,12 +98,12 @@ def get_cost_provider():
     Get the appropriate cost provider based on configuration.
     
     Returns:
-        AzureCostProvider if live mode enabled and configured,
-        MockCostProvider otherwise.
+        AzureCostDataProvider if live mode enabled and configured,
+        MockCostDataProvider otherwise.
     """
     if is_azure_live_mode():
-        return AzureCostProvider()
-    return MockCostProvider()
+        return AzureCostDataProvider()
+    return MockCostDataProvider()
 
 
 def get_pipeline_provider():
@@ -102,8 +112,8 @@ def get_pipeline_provider():
     
     Returns:
         GitLabPipelineProvider if live mode enabled and configured,
-        MockPipelineProvider otherwise.
+        MockPipelineDataProvider otherwise.
     """
     if is_gitlab_live_mode():
         return GitLabPipelineProvider()
-    return MockPipelineProvider()
+    return MockPipelineDataProvider()

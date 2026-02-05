@@ -4,7 +4,7 @@ Pipeline Tool - GitLab CI/CD pipeline analysis.
 Analyzes deployment history, infrastructure changes, and pipeline activity
 to correlate with cost changes. Uses LLM to extract insights from logs.
 
-For demo purposes, uses mock data simulating GitLab CI/CD responses.
+Supports both live GitLab API and mock data based on USE_LIVE_DATA setting.
 """
 
 import os
@@ -16,6 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
+from ..providers import is_gitlab_live_mode
 
 load_dotenv()
 
@@ -146,6 +147,8 @@ MOCK_PIPELINE_DATA = {
 class PipelineTool:
     """
     Tool for analyzing GitLab CI/CD pipelines and correlating with cost data.
+    
+    Supports both live GitLab API and mock data based on USE_LIVE_DATA setting.
     """
     
     def __init__(self, llm: Optional[ChatGroq] = None):
@@ -181,26 +184,83 @@ Deployment Statistics:
 Provide analysis focused on cost impact:""")
         ])
     
+    def _is_live_mode(self) -> bool:
+        """Check if using live GitLab API or mock data."""
+        return is_gitlab_live_mode()
+    
+    def _get_mode_indicator(self) -> str:
+        """Get the mode indicator string for output."""
+        if self._is_live_mode():
+            return "LIVE 🟢"
+        return "MOCK 🟡"
+    
     def _normalize_team_name(self, team_name: str) -> str:
         """Normalize team name for lookup."""
         return team_name.lower().replace(" ", "-").replace("_", "-")
     
-    def get_deployment_history(self, team_name: str, days: int = 7) -> dict:
+    def _get_live_data(self, team_name: str, days: int = 7) -> dict:
         """
-        Get deployment history for a team.
+        Fetch live data from GitLab API.
         
         Args:
             team_name: Name of the team
             days: Number of days to look back
         
         Returns:
-            Dictionary with deployment data
+            Dictionary with pipeline data from GitLab
         """
-        # Check cache
-        cached = self.cache.get("pipeline", team_name=team_name, days=days)
-        if cached:
-            return cached
+        try:
+            from ..providers import get_pipeline_provider
+            provider = get_pipeline_provider()
+            
+            # Get pipelines from the live provider
+            pipelines_data = provider.get_pipelines(days=days)
+            
+            # Transform to expected format
+            return {
+                "success": True,
+                "team": team_name,
+                "project": f"GitLab Project {os.getenv('GITLAB_PROJECT_ID', 'Unknown')}",
+                "period": f"Last {days} days",
+                "retrieved_at": datetime.now().isoformat(),
+                "statistics": {
+                    "total_deployments": len(pipelines_data.get("pipelines", [])),
+                    "failed_deployments": sum(1 for p in pipelines_data.get("pipelines", []) if p.get("status") == "failed"),
+                    "rollbacks": 0,  # Would need additional API calls to determine
+                    "success_rate": f"{pipelines_data.get('stats', {}).get('success_rate', 0):.1f}%"
+                },
+                "recent_pipelines": [
+                    {
+                        "id": p.get("id"),
+                        "status": p.get("status"),
+                        "created_at": p.get("created_at"),
+                        "duration_seconds": p.get("duration", 0),
+                        "ref": p.get("ref"),
+                        "commit_message": p.get("commit_title", "No message"),
+                        "stages": [],
+                        "jobs": []
+                    }
+                    for p in pipelines_data.get("pipelines", [])[:5]
+                ],
+                "infrastructure_changes": []  # Would need commit message analysis
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to fetch live GitLab data: {str(e)}"
+            }
+    
+    def _get_mock_data(self, team_name: str, days: int = 7) -> dict:
+        """
+        Get mock data for demo purposes.
         
+        Args:
+            team_name: Name of the team
+            days: Number of days to look back
+        
+        Returns:
+            Dictionary with mock pipeline data
+        """
         normalized_name = self._normalize_team_name(team_name)
         
         if normalized_name not in MOCK_PIPELINE_DATA:
@@ -211,7 +271,7 @@ Provide analysis focused on cost impact:""")
         
         data = MOCK_PIPELINE_DATA[normalized_name]
         
-        result = {
+        return {
             "success": True,
             "team": data["team"],
             "project": data["project"],
@@ -226,9 +286,38 @@ Provide analysis focused on cost impact:""")
             "recent_pipelines": data["recent_pipelines"][:5],
             "infrastructure_changes": data["infrastructure_changes"]
         }
+    
+    def get_deployment_history(self, team_name: str, days: int = 7) -> dict:
+        """
+        Get deployment history for a team.
+        
+        Uses live GitLab API if USE_LIVE_DATA=true, otherwise uses mock data.
+        
+        Args:
+            team_name: Name of the team
+            days: Number of days to look back
+        
+        Returns:
+            Dictionary with deployment data
+        """
+        # Check cache
+        cache_key = f"{'live' if self._is_live_mode() else 'mock'}_{team_name}_{days}"
+        cached = self.cache.get("pipeline", team_name=cache_key)
+        if cached:
+            return cached
+        
+        # Get data based on mode
+        if self._is_live_mode():
+            result = self._get_live_data(team_name, days)
+        else:
+            result = self._get_mock_data(team_name, days)
+        
+        # Add mode indicator to result
+        result["mode"] = self._get_mode_indicator()
         
         # Cache result
-        self.cache.set("pipeline", result, team_name=team_name, days=days)
+        if result.get("success"):
+            self.cache.set("pipeline", result, team_name=cache_key)
         
         return result
     
@@ -245,23 +334,24 @@ Provide analysis focused on cost impact:""")
         """
         deployment_data = self.get_deployment_history(team_name, days)
         
-        if not deployment_data["success"]:
+        if not deployment_data.get("success"):
             return deployment_data
         
         # Prepare pipeline summary
         pipeline_summary = []
-        for p in deployment_data["recent_pipelines"]:
+        for p in deployment_data.get("recent_pipelines", []):
+            commit_msg = p.get('commit_message', p.get('commit_title', 'No message'))
             pipeline_summary.append(
-                f"- Pipeline #{p['id']} ({p['created_at'][:10]}): {p['commit_message']} "
-                f"[Status: {p['status']}, Duration: {p['duration_seconds']}s]"
+                f"- Pipeline #{p['id']} ({str(p['created_at'])[:10]}): {commit_msg} "
+                f"[Status: {p['status']}, Duration: {p.get('duration_seconds', p.get('duration', 0))}s]"
             )
         
         # Prepare infrastructure changes
         infra_changes = []
         total_infra_cost = 0
-        for change in deployment_data["infrastructure_changes"]:
+        for change in deployment_data.get("infrastructure_changes", []):
             infra_changes.append(
-                f"- {change['date'][:10]}: {change['type']} - {change['description']} "
+                f"- {str(change['date'])[:10]}: {change['type']} - {change['description']} "
                 f"(Est. monthly cost: ${change['estimated_monthly_cost']})"
             )
             total_infra_cost += change["estimated_monthly_cost"]
@@ -284,6 +374,7 @@ Provide analysis focused on cost impact:""")
             "success": True,
             "team": deployment_data["team"],
             "period": deployment_data["period"],
+            "mode": deployment_data.get("mode", self._get_mode_indicator()),
             "statistics": deployment_data["statistics"],
             "estimated_infra_cost_change": f"${total_infra_cost}/month",
             "analysis": analysis.content
@@ -323,6 +414,9 @@ def pipeline_tool(query: str) -> str:
     tool_instance = get_pipeline_tool()
     query_lower = query.lower()
     
+    # Get mode indicator for output
+    mode_indicator = tool_instance._get_mode_indicator()
+    
     # Determine analysis type
     analyze_cost = "cost" in query_lower or "impact" in query_lower or "analyze" in query_lower or "why" in query_lower
     
@@ -332,11 +426,11 @@ def pipeline_tool(query: str) -> str:
         if any(v in query_lower for v in team_variants):
             if analyze_cost:
                 result = tool_instance.analyze_cost_impact(team_key)
-                if not result["success"]:
-                    return result["error"]
+                if not result.get("success"):
+                    return result.get("error", "Unknown error occurred")
                 
                 output = [
-                    f"🔧 PIPELINE COST IMPACT ANALYSIS: {result['team']}",
+                    f"🔧 PIPELINE COST IMPACT ANALYSIS: {result['team']} ({mode_indicator})",
                     f"Period: {result['period']}",
                     "",
                     "📈 DEPLOYMENT STATISTICS:",
@@ -353,11 +447,11 @@ def pipeline_tool(query: str) -> str:
                 return "\n".join(output)
             else:
                 result = tool_instance.get_deployment_history(team_key)
-                if not result["success"]:
-                    return result["error"]
+                if not result.get("success"):
+                    return result.get("error", "Unknown error occurred")
                 
                 output = [
-                    f"🚀 DEPLOYMENT HISTORY: {result['team']}",
+                    f"🚀 DEPLOYMENT HISTORY: {result['team']} ({mode_indicator})",
                     f"Project: {result['project']}",
                     f"Period: {result['period']}",
                     "",
@@ -368,10 +462,11 @@ def pipeline_tool(query: str) -> str:
                     "🔄 RECENT PIPELINES:"
                 ]
                 
-                for p in result["recent_pipelines"][:3]:
-                    output.append(f"  #{p['id']} ({p['created_at'][:10]}): {p['commit_message'][:50]}...")
+                for p in result.get("recent_pipelines", [])[:3]:
+                    commit_msg = p.get('commit_message', p.get('commit_title', 'No message'))
+                    output.append(f"  #{p['id']} ({str(p['created_at'])[:10]}): {commit_msg[:50]}...")
                 
-                if result["infrastructure_changes"]:
+                if result.get("infrastructure_changes"):
                     output.append("")
                     output.append("🏗️ INFRASTRUCTURE CHANGES:")
                     for change in result["infrastructure_changes"]:
@@ -379,4 +474,5 @@ def pipeline_tool(query: str) -> str:
                 
                 return "\n".join(output)
     
-    return "Please specify a team name (Release Team, CI Team, or CloudOps Team) to get pipeline data."
+    # If no specific team found, provide helpful message with mode indicator
+    return f"📡 Pipeline Tool ({mode_indicator})\n\nPlease specify a team name (Release Team, CI Team, or CloudOps Team) to get pipeline data."
