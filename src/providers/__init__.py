@@ -1,103 +1,109 @@
-"""Cost and Pipeline data providers - Mock and Live."""
+"""
+Cloud cost and pipeline data providers.
+
+Supports both live API calls and mock data for demos.
+The USE_LIVE_DATA environment variable controls which mode is used.
+"""
 
 import os
 import logging
 
+# Import providers
+from .azure_cost_provider import AzureCostProvider
+from .mock_cost_provider import MockCostProvider
+from .gitlab_pipeline_provider import GitLabPipelineProvider
+from .mock_pipeline_provider import MockPipelineProvider
+
 logger = logging.getLogger(__name__)
 
-# ============================================
-# COST PROVIDERS
-# ============================================
-_cost_provider_instance = None
+__all__ = [
+    "AzureCostProvider",
+    "MockCostProvider",
+    "GitLabPipelineProvider",
+    "MockPipelineProvider",
+    "is_live_mode",
+    "is_azure_live_mode",
+    "is_gitlab_live_mode",
+    "get_cost_provider",
+    "get_pipeline_provider"
+]
 
 
 def is_live_mode() -> bool:
-    """Check if live Azure mode is enabled."""
+    """
+    Check if system should use live API data.
+    
+    Returns:
+        True if USE_LIVE_DATA=true in environment, False otherwise.
+    """
     return os.getenv("USE_LIVE_DATA", "false").lower() == "true"
+
+
+def is_azure_live_mode() -> bool:
+    """
+    Check if Azure Cost Management should use live API data.
+    
+    Requires:
+        - USE_LIVE_DATA=true
+        - All Azure credentials configured
+    
+    Returns:
+        True if live Azure mode is enabled and configured.
+    """
+    if not is_live_mode():
+        return False
+    
+    required_vars = [
+        "AZURE_SUBSCRIPTION_ID",
+        "AZURE_TENANT_ID", 
+        "AZURE_CLIENT_ID",
+        "AZURE_CLIENT_SECRET"
+    ]
+    return all(os.getenv(var) for var in required_vars)
+
+
+def is_gitlab_live_mode() -> bool:
+    """
+    Check if GitLab CI/CD should use live API data.
+    
+    Requires:
+        - USE_LIVE_DATA=true
+        - GitLab token and project ID configured
+    
+    Returns:
+        True if live GitLab mode is enabled and configured.
+    """
+    if not is_live_mode():
+        return False
+    
+    required_vars = [
+        "GITLAB_TOKEN",
+        "GITLAB_PROJECT_ID"
+    ]
+    return all(os.getenv(var) for var in required_vars)
 
 
 def get_cost_provider():
-    """Get the appropriate cost provider."""
-    global _cost_provider_instance
+    """
+    Get the appropriate cost provider based on configuration.
     
-    if _cost_provider_instance is not None:
-        return _cost_provider_instance
-    
-    if is_live_mode():
-        try:
-            from .azure_cost_provider import AzureCostDataProvider
-            provider = AzureCostDataProvider()
-            if provider.is_available():
-                logger.info("✅ Using LIVE Azure Cost Management API")
-                _cost_provider_instance = provider
-                return _cost_provider_instance
-            else:
-                logger.warning("⚠️ Azure not available, using mock data")
-        except ImportError as e:
-            logger.warning(f"⚠️ Azure SDK error: {e}")
-    
-    from .mock_cost_provider import MockCostDataProvider
-    logger.info("🟡 Using MOCK cost data provider")
-    _cost_provider_instance = MockCostDataProvider()
-    return _cost_provider_instance
-
-
-def reset_provider():
-    """Reset cost provider (for testing)."""
-    global _cost_provider_instance
-    _cost_provider_instance = None
-
-
-# ============================================
-# PIPELINE PROVIDERS
-# ============================================
-_pipeline_provider_instance = None
-
-
-def is_pipeline_live_mode() -> bool:
-    """Check if live GitLab mode is enabled."""
-    return os.getenv("USE_LIVE_DATA", "false").lower() == "true"
+    Returns:
+        AzureCostProvider if live mode enabled and configured,
+        MockCostProvider otherwise.
+    """
+    if is_azure_live_mode():
+        return AzureCostProvider()
+    return MockCostProvider()
 
 
 def get_pipeline_provider():
-    """Get the appropriate pipeline provider."""
-    global _pipeline_provider_instance
+    """
+    Get the appropriate pipeline provider based on configuration.
     
-    if _pipeline_provider_instance is not None:
-        return _pipeline_provider_instance
-    
-    if is_pipeline_live_mode():
-        try:
-            from .gitlab_pipeline_provider import GitLabPipelineProvider
-            provider = GitLabPipelineProvider()
-            if provider.is_available():
-                logger.info("✅ Using LIVE GitLab Pipeline API")
-                _pipeline_provider_instance = provider
-                return _pipeline_provider_instance
-            else:
-                logger.warning("⚠️ GitLab not available, using mock data")
-        except ImportError as e:
-            logger.warning(f"⚠️ GitLab provider error: {e}")
-    
-    from .mock_pipeline_provider import MockPipelineDataProvider
-    logger.info("🟡 Using MOCK pipeline data provider")
-    _pipeline_provider_instance = MockPipelineDataProvider()
-    return _pipeline_provider_instance
-
-
-def reset_pipeline_provider():
-    """Reset pipeline provider (for testing)."""
-    global _pipeline_provider_instance
-    _pipeline_provider_instance = None
-
-
-__all__ = [
-    # Cost providers
-    "get_cost_provider", 
-    "is_live_mode", 
-    "reset_provider",
-    # Pipeline providers
-    "get_pipeline_provider",
-    "is_pipeline_live_mode",
-    "reset_pipeline_provider"
-]
+    Returns:
+        GitLabPipelineProvider if live mode enabled and configured,
+        MockPipelineProvider otherwise.
+    """
+    if is_gitlab_live_mode():
+        return GitLabPipelineProvider()
+    return MockPipelineProvider()
