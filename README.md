@@ -54,11 +54,20 @@ cp .env.example .env
 uv run python scripts/generate_pdfs.py
 ```
 
-### 4. Run the Demo
+### 4. Run CLI Demo
 
 ```bash
 uv run python main.py
 ```
+
+### 5. Run React Web UI
+
+```bash
+# Uses app.py as the API/static server
+.venv/bin/python app.py
+```
+
+Then open [http://localhost:8501](http://localhost:8501).
 
 ## 📁 Project Structure
 
@@ -73,14 +82,19 @@ imrag/
 │   └── utils/
 │       ├── rag_retriever.py    # ChromaDB wrapper
 │       └── cache_manager.py    # Caching layer
+├── static/
+│   ├── app.js                # React frontend (no build step)
+│   └── styles.css            # UI styling
+├── templates/
+│   └── index.html            # UI shell
 ├── data/
 │   ├── pdf_files/            # Source documents
 │   ├── vector_db/            # ChromaDB persistence
 │   └── cache/                # Tool output cache
 ├── scripts/
 │   └── generate_pdfs.py      # Demo data generator
-├── main.py                   # Demo entry point
-└── README.md
+├── main.py                   # CLI demo entry point
+└── app.py                    # React UI + API server
 ```
 
 ## 💬 Example Queries
