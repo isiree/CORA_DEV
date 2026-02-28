@@ -9,17 +9,17 @@ variable "resource_group_name" {
   default     = "rg-imrag-dev"
 }
 
-variable "location" {
-  description = "Azure region for resources"
-  type        = string
-  default     = "UK South"
-}
+#variable "location" {
+  #description = "Azure region for resources"
+  #type        = string
+  #default     = "UK South"
+#}
 
-variable "environment" {
-  description = "Environment name"
-  type        = string
-  default     = "dev"
-}
+#variable "environment" {
+# description = "Environment name"
+# type        = string
+# default     = "dev"
+#}
 
 # ============================================
 # SCALING VARIABLES - Used by CI/CD pipeline
