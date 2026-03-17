@@ -13,12 +13,13 @@ import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-load_dotenv()
+from src.scenarios import ScenarioRun, build_scenario_run, SCENARIO_IDS
+from src.g import g
 
 ROOT_DIR = Path(__file__).parent.resolve()
 TEMPLATES_DIR = ROOT_DIR / "templates"
@@ -26,6 +27,7 @@ STATIC_DIR = ROOT_DIR / "static"
 
 _AGENT_LOCK = threading.Lock()
 _AGENT_INSTANCE: Any = None
+_current_scenario_run: Optional[ScenarioRun] = None
 
 TEAM_OPTIONS = ["All Teams", "ci-team", "release-team", "cloudops-team"]
 EXAMPLE_QUERIES = [
@@ -86,6 +88,9 @@ def _set_mode(new_mode: str) -> str:
     os.environ["USE_LIVE_DATA"] = "true" if normalized == "Live" else "false"
     _reset_providers()
     _reset_agent()
+    # Reset scenario on mode change
+    global _current_scenario_run
+    _current_scenario_run = None
     return normalized
 
 
@@ -103,7 +108,8 @@ def _get_agent() -> Any:
 def _serialize_steps(intermediate_steps: list[Any]) -> list[dict[str, Any]]:
     serialized: list[dict[str, Any]] = []
 
-    for idx, step in enumerate(intermediate_steps[:5], start=1):
+    steps: list[Any] = intermediate_steps[:5] if isinstance(intermediate_steps, list) else []
+    for idx, step in enumerate(steps, start=1):
         try:
             action, observation = step
         except Exception:
@@ -112,7 +118,7 @@ def _serialize_steps(intermediate_steps: list[Any]) -> list[dict[str, Any]]:
         tool_name = getattr(action, "tool", "Unknown")
         tool_input = getattr(action, "tool_input", {})
         obs_text = str(observation)
-        obs_preview = obs_text[:800] + ("... [truncated]" if len(obs_text) > 800 else "")
+        obs_preview = str(obs_text)[:800] + ("... [truncated]" if len(str(obs_text)) > 800 else "")
 
         serialized.append(
             {
@@ -191,10 +197,27 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"mode": mode})
             return
 
+        if route == "/api/config/scenario":
+            payload = payload or {}
+            scenario_id = payload.get("scenario_id")
+            if not scenario_id or scenario_id not in SCENARIO_IDS:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"Invalid scenario_id. Must be one of: {', '.join(SCENARIO_IDS)}"})
+                return
+            
+            global _current_scenario_run
+            _current_scenario_run = build_scenario_run(scenario_id)
+            self._send_json(HTTPStatus.OK, {"status": "ok", "scenario_id": scenario_id})
+            return
+
         if route == "/api/query":
             payload = payload or {}
             prompt = str(payload.get("prompt", "")).strip()
             team_filter = str(payload.get("team_filter", "All Teams"))
+            
+            if _get_mode() == "Mock":
+                g.scenario_run = _current_scenario_run
+            else:
+                g.scenario_run = None
 
             if not prompt:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Prompt is required."})
