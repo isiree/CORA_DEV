@@ -20,4 +20,6 @@ dependencies = [
   "requests>=2.31.0",
   "httpx>=0.25.0",
   "fpdf2>=2.7.0",
+  "azure-identity>=1.25.3",
+  "azure-mgmt-costmanagement>=4.0.1",
 ]
