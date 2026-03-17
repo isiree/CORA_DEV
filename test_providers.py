@@ -20,7 +20,8 @@ print("TEST 1: Mock Mode")
 print("=" * 60)
 os.environ["USE_LIVE_DATA"] = "false"
 
-from src.providers import get_cost_provider, is_live_mode, reset_provider
+from src.providers import get_cost_provider, is_live_mode
+from app import _reset_providers as reset_provider
 reset_provider()
 
 print(f"Live mode: {is_live_mode()}")

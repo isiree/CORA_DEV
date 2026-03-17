@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
 from ..providers import is_gitlab_live_mode, get_pipeline_provider
+from ..g import g
 
 load_dotenv()
 
@@ -258,6 +259,34 @@ Provide analysis focused on cost impact:""")
             Dictionary with mock pipeline data
         """
         normalized_name = self._normalize_team_name(team_name)
+        scenario_run = getattr(g, 'scenario_run', None)
+        
+        if scenario_run is not None and getattr(scenario_run, 'pipeline_data', None):
+            # Extract from scenario
+            pipes = scenario_run.pipeline_data.get("pipelines", [])
+            team_pipes = [p for p in pipes if p.get("team_id") == normalized_name]
+            
+            # Simple stats
+            failed = len([p for p in team_pipes if p.get("status") == "failed"])
+            total = len(team_pipes)
+            success_rate = f"{((total - failed) / max(total, 1)) * 100:.1f}%"
+            
+            return {
+                "success": True,
+                "team": team_name.title(),
+                "project": f"{normalized_name}-infra",
+                "period": f"Last {days} days",
+                "retrieved_at": datetime.now().isoformat(),
+                "mode": f"mock ({scenario_run.scenario_id})",
+                "statistics": {
+                    "total_deployments": total,
+                    "failed_deployments": failed,
+                    "rollbacks": 0,
+                    "success_rate": success_rate
+                },
+                "recent_pipelines": team_pipes[:5],
+                "infrastructure_changes": []  # Scenarios represent changes directly in pipes for simplicity
+            }
         
         if normalized_name not in MOCK_PIPELINE_DATA:
             return {
