@@ -1,7 +1,8 @@
 """
 Historical Tool - RAG-based document search for policies and governance.
 
-Searches through ABC Company's PDF documents including:
+Searches through ABC Company's indexed documents (PDF, Markdown, text, DOCX)
+including:
 - Team subscriptions and budget allocations
 - Cost governance policies
 - FinOps frameworks

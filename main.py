@@ -42,7 +42,8 @@ def check_vector_db():
     db_path = Path(os.getenv("CHROMA_PERSIST_DIR", "data/vector_db"))
     if not db_path.exists() or not any(db_path.iterdir()):
         print("⚠️  Vector database not found at:", db_path)
-        print("   Run the PDF loader notebook first to create the database.")
+        print("   Run: uv run python scripts/setup_vector_db.py")
+        print("   This indexes supported docs from your data folders (PDF/MD/TXT/DOCX).")
         return False
     
     print("✅ Vector database found")

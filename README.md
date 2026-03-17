@@ -54,13 +54,31 @@ cp .env.example .env
 uv run python scripts/generate_pdfs.py
 ```
 
-### 4. Run CLI Demo
+### 4. Build/Update Vector Database
+
+```bash
+uv run python scripts/setup_vector_db.py
+```
+
+This indexes supported source files from your data folders:
+- `.pdf`
+- `.md` / `.markdown`
+- `.txt`
+- `.docx`
+
+Optional: reindex from scratch:
+
+```bash
+uv run python scripts/setup_vector_db.py --fresh
+```
+
+### 5. Run CLI Demo
 
 ```bash
 uv run python main.py
 ```
 
-### 5. Run React Web UI
+### 6. Run React Web UI
 
 ```bash
 # Uses app.py as the API/static server
@@ -88,7 +106,9 @@ imrag/
 ├── templates/
 │   └── index.html            # UI shell
 ├── data/
-│   ├── pdf_files/            # Source documents
+│   ├── docs/                 # Source documents (optional)
+│   ├── pdf_files/            # Source documents (optional)
+│   ├── text_files/           # Source documents (optional)
 │   ├── vector_db/            # ChromaDB persistence
 │   └── cache/                # Tool output cache
 ├── scripts/
