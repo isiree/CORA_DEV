@@ -120,7 +120,7 @@ Provide a concise, factual summary:""")
                     seen.add(src)
                     sources.append(src)
             sources_block = "\n".join([f"- {s}" for s in sources]) if sources else "- Unknown"
-            response["summary"] = f\"{summary_response.content.strip()}\\n\\nSources:\\n{sources_block}\"
+            response["summary"] = f"{summary_response.content.strip()}\n\nSources:\n{sources_block}"
         
         return response
 
