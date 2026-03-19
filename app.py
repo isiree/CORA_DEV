@@ -13,6 +13,7 @@ import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import re
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -119,6 +120,7 @@ def _serialize_steps(intermediate_steps: list[Any]) -> list[dict[str, Any]]:
         tool_input = getattr(action, "tool_input", {})
         obs_text = str(observation)
         obs_preview = str(obs_text)[:800] + ("... [truncated]" if len(str(obs_text)) > 800 else "")
+        sources = _extract_sources(obs_text)
 
         serialized.append(
             {
@@ -126,10 +128,40 @@ def _serialize_steps(intermediate_steps: list[Any]) -> list[dict[str, Any]]:
                 "tool": tool_name,
                 "query": str(tool_input),
                 "result_preview": obs_preview,
+                "sources": sources,
             }
         )
 
     return serialized
+
+
+def _extract_sources(text: str) -> list[str]:
+    if not text:
+        return []
+
+    sources: list[str] = []
+
+    # Matches "(Source: something)" or "Source: something"
+    for match in re.findall(r"Source:\s*([^\)\n]+)", text, flags=re.IGNORECASE):
+        sources.append(match.strip())
+
+    # Matches "[path/to/doc]" lines used in fallback formatting
+    for match in re.findall(r"^\[([^\]]+)]", text, flags=re.MULTILINE):
+        sources.append(match.strip())
+
+    # Matches "- source" lines under a "Sources:" block
+    for match in re.findall(r"^-\s+(.+)$", text, flags=re.MULTILINE):
+        sources.append(match.strip())
+
+    # De-dupe while preserving order
+    seen = set()
+    unique = []
+    for s in sources:
+        if s and s not in seen:
+            seen.add(s)
+            unique.append(s)
+
+    return unique
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -164,6 +196,11 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                     "mode": _get_mode(),
                     "team_options": TEAM_OPTIONS,
                     "example_queries": EXAMPLE_QUERIES,
+                    "knowledge_base": {
+                        "document_count": None,
+                        "chunk_count": None,
+                        "last_updated": None,
+                    },
                 },
             )
             return
@@ -228,17 +265,37 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             try:
                 agent = _get_agent()
                 result = agent.query(full_query)
+                steps = _serialize_steps(result.get("intermediate_steps", []))
+                source_set = []
+                seen_sources = set()
+                for s in _extract_sources(result.get("answer", "")):
+                    if s not in seen_sources:
+                        seen_sources.add(s)
+                        source_set.append(s)
+                for step in steps:
+                    for s in step.get("sources", []):
+                        if s not in seen_sources:
+                            seen_sources.add(s)
+                            source_set.append(s)
                 self._send_json(
                     HTTPStatus.OK,
                     {
                         "full_query": full_query,
                         "answer": result.get("answer", ""),
                         "tools_used": result.get("tools_used", []),
-                        "steps": _serialize_steps(result.get("intermediate_steps", [])),
+                        "steps": steps,
+                        "sources": source_set,
                     },
                 )
             except Exception as exc:
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"Investigation failed: {exc}"})
+            return
+
+        if route == "/api/reindex":
+            try:
+                self._send_json(HTTPStatus.OK, {"status": "ok", "message": "Index refreshed"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"Reindex failed: {exc}"})
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
