@@ -112,7 +112,15 @@ Provide a concise, factual summary:""")
                 "query": query,
                 "results": results_text
             })
-            response["summary"] = summary_response.content
+            sources = []
+            seen = set()
+            for r in formatted_results:
+                src = r.get("source")
+                if src and src not in seen:
+                    seen.add(src)
+                    sources.append(src)
+            sources_block = "\n".join([f"- {s}" for s in sources]) if sources else "- Unknown"
+            response["summary"] = f\"{summary_response.content.strip()}\\n\\nSources:\\n{sources_block}\"
         
         return response
 
