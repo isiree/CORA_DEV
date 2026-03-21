@@ -388,10 +388,14 @@ Provide analysis focused on cost impact:""")
         # Prepare pipeline summary
         pipeline_summary = []
         for p in deployment_data.get("recent_pipelines", []):
-            commit_msg = p.get('commit_message', p.get('commit_title', 'No message'))
+            pipeline_id = p.get("id") or p.get("pipeline_id", "unknown")
+            created_at = str(p.get("created_at", p.get("started_at", "unknown")))[:10]
+            commit_msg = p.get("commit_message", p.get("commit_title", p.get("name", "No message")))
+            status = p.get("status", "unknown")
+            duration = p.get("duration_seconds", p.get("duration", 0))
             pipeline_summary.append(
-                f"- Pipeline #{p['id']} ({str(p['created_at'])[:10]}): {commit_msg} "
-                f"[Status: {p['status']}, Duration: {p.get('duration_seconds', p.get('duration', 0))}s]"
+                f"- Pipeline #{pipeline_id} ({created_at}): {commit_msg} "
+                f"[Status: {status}, Duration: {duration}s]"
             )
         
         # Prepare infrastructure changes
