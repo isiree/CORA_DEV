@@ -22,6 +22,10 @@ from ..g import g
 load_dotenv()
 
 
+def _is_mock_mode() -> bool:
+    return not is_gitlab_live_mode()
+
+
 # Mock GitLab pipeline data for demo
 MOCK_PIPELINE_DATA = {
     "release-team": {
@@ -203,6 +207,9 @@ Provide analysis focused on cost impact:""")
         """
         Fetch live data from GitLab API.
         """
+        if _is_mock_mode():
+            return self._get_mock_data(team_name, days)
+
         try:
             provider = get_pipeline_provider()
             normalized_team = self._normalize_team_name(team_name)
@@ -242,9 +249,13 @@ Provide analysis focused on cost impact:""")
                 "infrastructure_changes": []
             }
         except Exception as e:
+            if _is_mock_mode():
+                msg = "Mock data unavailable for this query. Ensure a scenario is selected."
+            else:
+                msg = f"Failed to fetch live GitLab data: {str(e)}"
             return {
                 "success": False,
-                "error": f"Failed to fetch live GitLab data: {str(e)}"
+                "error": msg
             }
     
     def _get_mock_data(self, team_name: str, days: int = 7) -> dict:
@@ -325,6 +336,18 @@ Provide analysis focused on cost impact:""")
         Returns:
             Dictionary with deployment data
         """
+        if _is_mock_mode():
+            cache_key = f"mock_{team_name}_{days}"
+            cached = self.cache.get("pipeline", team_name=cache_key)
+            if cached:
+                return cached
+
+            result = self._get_mock_data(team_name, days)
+            result["mode"] = self._get_mode_indicator()
+            if result.get("success"):
+                self.cache.set("pipeline", result, team_name=cache_key)
+            return result
+
         # Check cache
         cache_key = f"{'live' if self._is_live_mode() else 'mock'}_{team_name}_{days}"
         cached = self.cache.get("pipeline", team_name=cache_key)

@@ -49,6 +49,11 @@ def is_live_mode() -> bool:
     return os.getenv("USE_LIVE_DATA", "false").lower() == "true"
 
 
+def _is_mock_mode() -> bool:
+    """Check if system should use mock data mode."""
+    return not is_live_mode()
+
+
 def is_azure_live_mode() -> bool:
     """
     Check if Azure Cost Management should use live API data.
@@ -118,24 +123,30 @@ def get_cost_provider():
     
     if _cost_provider_instance is not None:
         return _cost_provider_instance
-    
-    if is_azure_live_mode():
-        try:
-            provider = AzureCostDataProvider()
-            # Test if provider works
-            if hasattr(provider, 'is_available') and not provider.is_available():
-                logger.warning("⚠️ Azure provider not available, falling back to mock")
-                _cost_provider_instance = MockCostDataProvider()
-            else:
-                logger.info("✅ Using LIVE Azure Cost API")
-                _cost_provider_instance = provider
-        except Exception as e:
-            logger.warning(f"⚠️ Azure provider error: {e}, falling back to mock")
-            _cost_provider_instance = MockCostDataProvider()
-    else:
+
+    if _is_mock_mode():
         logger.info("🟡 Using MOCK cost data provider")
         _cost_provider_instance = MockCostDataProvider()
-    
+        return _cost_provider_instance
+
+    if not is_azure_live_mode():
+        logger.warning("⚠️ Azure live mode not fully configured, falling back to mock")
+        _cost_provider_instance = MockCostDataProvider()
+        return _cost_provider_instance
+
+    try:
+        provider = AzureCostDataProvider()
+        # only check live provider availability in live mode
+        if provider.is_available():
+            logger.info("✅ Using LIVE Azure Cost API")
+            _cost_provider_instance = provider
+        else:
+            logger.warning("⚠️ Azure provider not available, falling back to mock")
+            _cost_provider_instance = MockCostDataProvider()
+    except Exception as e:
+        logger.warning(f"⚠️ Azure provider error: {e}, falling back to mock")
+        _cost_provider_instance = MockCostDataProvider()
+
     return _cost_provider_instance
 
 

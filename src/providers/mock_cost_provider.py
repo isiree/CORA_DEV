@@ -1,7 +1,8 @@
 """Mock data provider for development and testing."""
 
+import copy
 from datetime import datetime
-from typing import List
+from typing import Any, Dict, List, Optional
 from .base_provider import CostDataProvider
 from ..g import g
 
@@ -48,6 +49,141 @@ MOCK_TEAMS = {
     }
 }
 
+RESOURCE_DISCOVERY_BASE = {
+    "ci-team": {
+        "team_name": "CI Team",
+        "resource_group": "rg-ci-team",
+        "idle_resources": [
+            {
+                "resource_id": "res-ci-build-vm-01",
+                "resource_type": "vm",
+                "team": "ci-team",
+                "monthly_cost": 210.0,
+                "days_idle": 18,
+                "region": "eastus",
+            },
+            {
+                "resource_id": "res-ci-build-cache-sa",
+                "resource_type": "storage-account",
+                "team": "ci-team",
+                "monthly_cost": 74.0,
+                "days_idle": 25,
+                "region": "eastus2",
+            },
+        ],
+        "orphaned_resources": [
+            {
+                "resource_id": "res-ci-orphan-disk-01",
+                "resource_type": "managed-disk",
+                "team": "ci-team",
+                "monthly_cost": 38.0,
+                "days_idle": 27,
+                "region": "eastus",
+                "reason_orphaned": "Parent VM was deleted but managed disk retained.",
+            }
+        ],
+        "resource_utilization": {
+            "average_cpu_percent": 22.4,
+            "average_memory_percent": 30.9,
+            "underutilized_count": 3,
+        },
+        "storage_accounts": [
+            {"name": "stcibuildcache01", "location": "eastus2", "tags": {"team": "ci-team", "purpose": "build-cache"}}
+        ],
+        "container_instances": [
+            {"name": "aci-ci-runner-legacy", "location": "eastus", "tags": {"team": "ci-team", "purpose": "legacy-runner"}}
+        ],
+    },
+    "release-team": {
+        "team_name": "Release Team",
+        "resource_group": "rg-release-team",
+        "idle_resources": [
+            {
+                "resource_id": "res-rel-canary-vm-01",
+                "resource_type": "vm",
+                "team": "release-team",
+                "monthly_cost": 182.0,
+                "days_idle": 15,
+                "region": "eastus",
+            },
+            {
+                "resource_id": "res-rel-canary-aci-01",
+                "resource_type": "container-instance",
+                "team": "release-team",
+                "monthly_cost": 96.0,
+                "days_idle": 19,
+                "region": "eastus",
+            },
+        ],
+        "orphaned_resources": [
+            {
+                "resource_id": "res-rel-orphan-ip-01",
+                "resource_type": "public-ip",
+                "team": "release-team",
+                "monthly_cost": 15.0,
+                "days_idle": 33,
+                "region": "eastus",
+                "reason_orphaned": "Load balancer was removed but public IP remained allocated.",
+            }
+        ],
+        "resource_utilization": {
+            "average_cpu_percent": 26.7,
+            "average_memory_percent": 36.1,
+            "underutilized_count": 4,
+        },
+        "storage_accounts": [
+            {"name": "streleaseartifacts01", "location": "eastus", "tags": {"team": "release-team", "purpose": "artifacts"}}
+        ],
+        "container_instances": [
+            {"name": "aci-release-preview-01", "location": "eastus", "tags": {"team": "release-team", "purpose": "preview"}}
+        ],
+    },
+    "cloudops-team": {
+        "team_name": "CloudOps Team",
+        "resource_group": "rg-cloudops-team",
+        "idle_resources": [
+            {
+                "resource_id": "res-ops-dr-vm-01",
+                "resource_type": "vm",
+                "team": "cloudops-team",
+                "monthly_cost": 240.0,
+                "days_idle": 14,
+                "region": "eastus",
+            },
+            {
+                "resource_id": "res-ops-audit-sa-01",
+                "resource_type": "storage-account",
+                "team": "cloudops-team",
+                "monthly_cost": 82.0,
+                "days_idle": 22,
+                "region": "centralus",
+            },
+        ],
+        "orphaned_resources": [
+            {
+                "resource_id": "res-ops-orphan-snapshot-01",
+                "resource_type": "snapshot",
+                "team": "cloudops-team",
+                "monthly_cost": 44.0,
+                "days_idle": 31,
+                "region": "eastus",
+                "reason_orphaned": "Source disk was removed after DR test; snapshot left behind.",
+            }
+        ],
+        "resource_utilization": {
+            "average_cpu_percent": 28.3,
+            "average_memory_percent": 38.5,
+            "underutilized_count": 3,
+        },
+        "storage_accounts": [
+            {"name": "stcloudopslogs01", "location": "centralus", "tags": {"team": "cloudops-team", "purpose": "ops-logs"}}
+        ],
+        "container_instances": [
+            {"name": "aci-dr-healthcheck-01", "location": "eastus", "tags": {"team": "cloudops-team", "purpose": "dr-check"}}
+        ],
+    },
+}
+
 
 class MockCostDataProvider(CostDataProvider):
     """Mock implementation of cost data provider."""
@@ -78,6 +214,122 @@ class MockCostDataProvider(CostDataProvider):
         elif pct >= 50:
             return "INFORMATIONAL"
         return "NORMAL"
+
+    def _build_resource_profiles(self, scenario_run: Optional[Any]) -> Dict[str, Dict[str, Any]]:
+        profiles = copy.deepcopy(RESOURCE_DISCOVERY_BASE)
+        if scenario_run is None:
+            return profiles
+
+        scenario_id = getattr(scenario_run, "scenario_id", "")
+
+        if scenario_id == "scenario_1_vm_destroy":
+            profiles["ci-team"]["idle_resources"] = [
+                {
+                    "resource_id": "res-loadtest-1",
+                    "resource_type": "vm",
+                    "team": "ci-team",
+                    "monthly_cost": 620.0,
+                    "days_idle": 12,
+                    "region": "eastus",
+                },
+                {
+                    "resource_id": "res-loadtest-2",
+                    "resource_type": "vm",
+                    "team": "ci-team",
+                    "monthly_cost": 610.0,
+                    "days_idle": 11,
+                    "region": "eastus",
+                },
+            ]
+            profiles["ci-team"]["orphaned_resources"] = [
+                {
+                    "resource_id": "res-loadtest-1",
+                    "resource_type": "vm",
+                    "team": "ci-team",
+                    "monthly_cost": 620.0,
+                    "days_idle": 12,
+                    "region": "eastus",
+                    "reason_orphaned": "Terraform destroy failed repeatedly due to state lock, VM left running.",
+                }
+            ]
+            profiles["ci-team"]["resource_utilization"] = {
+                "average_cpu_percent": 4.8,
+                "average_memory_percent": 9.2,
+                "underutilized_count": 4,
+            }
+        elif scenario_id == "scenario_3_autoscaler":
+            profiles["release-team"]["idle_resources"] = [
+                {
+                    "resource_id": "res-web-frontend-inst-09",
+                    "resource_type": "vmss-instance",
+                    "team": "release-team",
+                    "monthly_cost": 280.0,
+                    "days_idle": 10,
+                    "region": "eastus",
+                },
+                {
+                    "resource_id": "res-web-frontend-inst-10",
+                    "resource_type": "vmss-instance",
+                    "team": "release-team",
+                    "monthly_cost": 280.0,
+                    "days_idle": 10,
+                    "region": "eastus",
+                },
+            ]
+            profiles["release-team"]["orphaned_resources"] = [
+                {
+                    "resource_id": "res-web-frontend-osdisk-09",
+                    "resource_type": "managed-disk",
+                    "team": "release-team",
+                    "monthly_cost": 52.0,
+                    "days_idle": 10,
+                    "region": "eastus",
+                    "reason_orphaned": "Autoscaler never scaled down VMSS, leaving detached disk after replacement.",
+                }
+            ]
+            profiles["release-team"]["resource_utilization"] = {
+                "average_cpu_percent": 8.6,
+                "average_memory_percent": 18.4,
+                "underutilized_count": 6,
+            }
+
+        return profiles
+
+    def _compose_resource_rows(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for item in profile["idle_resources"]:
+            rows.append(
+                {
+                    "name": item["resource_id"],
+                    "type": item["resource_type"],
+                    "location": item["region"],
+                    "team": item["team"],
+                    "monthly_cost": item["monthly_cost"],
+                    "days_idle": item["days_idle"],
+                    "status": "idle",
+                }
+            )
+        for item in profile["orphaned_resources"]:
+            rows.append(
+                {
+                    "name": item["resource_id"],
+                    "type": item["resource_type"],
+                    "location": item["region"],
+                    "team": item["team"],
+                    "monthly_cost": item["monthly_cost"],
+                    "days_idle": item["days_idle"],
+                    "status": "orphaned",
+                    "reason_orphaned": item["reason_orphaned"],
+                }
+            )
+        return rows
+
+    def _build_grouped_resources(self, rows: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        for row in rows:
+            key = row["type"].replace("-", " ").title()
+            grouped.setdefault(key, []).append({"name": row["name"], "location": row["location"]})
+        return grouped
     
     def get_team_spending(self, team_name: str, days: int = 30) -> dict:
         normalized = self._normalize_team_name(team_name)
@@ -240,3 +492,182 @@ class MockCostDataProvider(CostDataProvider):
                 }
         
         return {"success": False, "error": f"Subscription '{subscription_id}' not found"}
+
+    def get_team_resources(self, team_name: str) -> dict:
+        scenario_run = getattr(g, "scenario_run", None)
+        profiles = self._build_resource_profiles(scenario_run)
+        normalized = self._normalize_team_name(team_name)
+
+        if normalized not in profiles:
+            return {
+                "success": False,
+                "error": f"Team '{team_name}' not found. Available: {', '.join(profiles.keys())}",
+            }
+
+        profile = profiles[normalized]
+        resources = self._compose_resource_rows(profile)
+
+        return {
+            "success": True,
+            "team": profile["team_name"],
+            "lead": self.data.get(normalized, {}).get("lead", "Unknown"),
+            "resource_group": profile["resource_group"],
+            "total_resources": len(resources),
+            "resources": resources,
+            "grouped": self._build_grouped_resources(resources),
+            "idle_resources": profile["idle_resources"],
+            "orphaned_resources": profile["orphaned_resources"],
+            "resource_utilization": profile["resource_utilization"],
+            "retrieved_at": datetime.now().isoformat(),
+            "data_source": f"mock ({scenario_run.scenario_id})" if scenario_run is not None else "mock",
+        }
+
+    def get_all_resources(self) -> dict:
+        scenario_run = getattr(g, "scenario_run", None)
+        profiles = self._build_resource_profiles(scenario_run)
+
+        by_team: Dict[str, List[Dict[str, Any]]] = {}
+        team_resource_health: Dict[str, Dict[str, Any]] = {}
+        total_resources = 0
+
+        for team_id, profile in profiles.items():
+            resources = self._compose_resource_rows(profile)
+            total_resources += len(resources)
+            by_team[profile["team_name"]] = [
+                {"name": r["name"], "type": r["type"], "location": r["location"]} for r in resources
+            ]
+            team_resource_health[team_id] = {
+                "idle_resources": profile["idle_resources"],
+                "orphaned_resources": profile["orphaned_resources"],
+                "resource_utilization": profile["resource_utilization"],
+            }
+
+        return {
+            "success": True,
+            "resource_group": "rg-imrag-dev",
+            "total_resources": total_resources,
+            "by_team": by_team,
+            "team_resource_health": team_resource_health,
+            "retrieved_at": datetime.now().isoformat(),
+            "data_source": f"mock ({scenario_run.scenario_id})" if scenario_run is not None else "mock",
+        }
+
+    def get_storage_accounts(self, team_name: str = None) -> dict:
+        scenario_run = getattr(g, "scenario_run", None)
+        profiles = self._build_resource_profiles(scenario_run)
+
+        team_resource_health: Dict[str, Dict[str, Any]] = {}
+        storage_accounts: List[Dict[str, Any]] = []
+
+        if team_name:
+            normalized = self._normalize_team_name(team_name)
+            if normalized not in profiles:
+                return {
+                    "success": False,
+                    "error": f"Team '{team_name}' not found. Available: {', '.join(profiles.keys())}",
+                }
+
+            profile = profiles[normalized]
+            for account in profile["storage_accounts"]:
+                storage_accounts.append(
+                    {
+                        "name": account["name"],
+                        "location": account["location"],
+                        "team": profile["team_name"],
+                        "tags": account.get("tags", {}),
+                    }
+                )
+
+            team_resource_health[normalized] = {
+                "idle_resources": profile["idle_resources"],
+                "orphaned_resources": profile["orphaned_resources"],
+                "resource_utilization": profile["resource_utilization"],
+            }
+            team_label = profile["team_name"]
+        else:
+            for team_id, profile in profiles.items():
+                team_resource_health[team_id] = {
+                    "idle_resources": profile["idle_resources"],
+                    "orphaned_resources": profile["orphaned_resources"],
+                    "resource_utilization": profile["resource_utilization"],
+                }
+                for account in profile["storage_accounts"]:
+                    storage_accounts.append(
+                        {
+                            "name": account["name"],
+                            "location": account["location"],
+                            "team": profile["team_name"],
+                            "tags": account.get("tags", {}),
+                        }
+                    )
+            team_label = None
+
+        return {
+            "success": True,
+            "team": team_label,
+            "count": len(storage_accounts),
+            "storage_accounts": storage_accounts,
+            "team_resource_health": team_resource_health,
+            "retrieved_at": datetime.now().isoformat(),
+            "data_source": f"mock ({scenario_run.scenario_id})" if scenario_run is not None else "mock",
+        }
+
+    def get_container_instances(self, team_name: str = None) -> dict:
+        scenario_run = getattr(g, "scenario_run", None)
+        profiles = self._build_resource_profiles(scenario_run)
+
+        team_resource_health: Dict[str, Dict[str, Any]] = {}
+        container_instances: List[Dict[str, Any]] = []
+
+        if team_name:
+            normalized = self._normalize_team_name(team_name)
+            if normalized not in profiles:
+                return {
+                    "success": False,
+                    "error": f"Team '{team_name}' not found. Available: {', '.join(profiles.keys())}",
+                }
+
+            profile = profiles[normalized]
+            for container in profile["container_instances"]:
+                container_instances.append(
+                    {
+                        "name": container["name"],
+                        "location": container["location"],
+                        "team": profile["team_name"],
+                        "tags": container.get("tags", {}),
+                    }
+                )
+
+            team_resource_health[normalized] = {
+                "idle_resources": profile["idle_resources"],
+                "orphaned_resources": profile["orphaned_resources"],
+                "resource_utilization": profile["resource_utilization"],
+            }
+            team_label = profile["team_name"]
+        else:
+            for team_id, profile in profiles.items():
+                team_resource_health[team_id] = {
+                    "idle_resources": profile["idle_resources"],
+                    "orphaned_resources": profile["orphaned_resources"],
+                    "resource_utilization": profile["resource_utilization"],
+                }
+                for container in profile["container_instances"]:
+                    container_instances.append(
+                        {
+                            "name": container["name"],
+                            "location": container["location"],
+                            "team": profile["team_name"],
+                            "tags": container.get("tags", {}),
+                        }
+                    )
+            team_label = None
+
+        return {
+            "success": True,
+            "team": team_label,
+            "count": len(container_instances),
+            "container_instances": container_instances,
+            "team_resource_health": team_resource_health,
+            "retrieved_at": datetime.now().isoformat(),
+            "data_source": f"mock ({scenario_run.scenario_id})" if scenario_run is not None else "mock",
+        }
