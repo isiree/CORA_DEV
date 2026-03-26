@@ -215,6 +215,59 @@ class MockCostDataProvider(CostDataProvider):
             return "INFORMATIONAL"
         return "NORMAL"
 
+    def _get_team_profile(self, team_id: str) -> Dict[str, Any]:
+        return self.data.get(team_id, {})
+
+    def _get_team_display_name(self, team_id: str) -> str:
+        profile = self._get_team_profile(team_id)
+        if profile.get("team_name"):
+            return profile["team_name"]
+        return team_id.replace("-", " ").title()
+
+    def _get_team_budget(self, team_id: str) -> float:
+        profile = self._get_team_profile(team_id)
+        return float(profile.get("budget_monthly", 2400.0))
+
+    def _build_scenario_cost_summary(self, team_data: Dict[str, Any], days: int = 30) -> Dict[str, Any]:
+        normalized = team_data["team_id"]
+        daily_costs = team_data.get("daily_costs", [])
+        recent_days = daily_costs[-days:] if daily_costs else []
+
+        spend_sum = sum(float(c.get("total_cost", 0)) for c in recent_days)
+        recent_window = recent_days[-7:] if recent_days else []
+        baseline_window = recent_days[: min(7, len(recent_days))] if recent_days else []
+        baseline_avg = (
+            sum(float(c.get("total_cost", 0)) for c in baseline_window) / len(baseline_window)
+            if baseline_window else 0.0
+        )
+        recent_avg = (
+            sum(float(c.get("total_cost", 0)) for c in recent_window) / len(recent_window)
+            if recent_window else 0.0
+        )
+        spike_delta = recent_avg - baseline_avg
+        budget = self._get_team_budget(normalized)
+        budget_pct = (spend_sum / budget) * 100 if budget else 0.0
+        profile = self._get_team_profile(normalized)
+
+        return {
+            "team_id": normalized,
+            "team_name": self._get_team_display_name(normalized),
+            "lead": profile.get("lead", f"{self._get_team_display_name(normalized)} Lead"),
+            "subscriptions": profile.get("subscriptions", ["sub-mock-001"]),
+            "monthly_budget": budget,
+            "current_spend": spend_sum,
+            "forecast_month_end": spend_sum * 1.2,
+            "budget_used_percentage": budget_pct,
+            "budget_status": self._get_budget_status(budget_pct),
+            "compute_cost": sum(float(c.get("compute_cost", 0)) for c in recent_days),
+            "storage_cost": sum(float(c.get("storage_cost", 0)) for c in recent_days),
+            "network_cost": sum(float(c.get("network_cost", 0)) for c in recent_days),
+            "daily_trend": [float(c.get("total_cost", 0)) for c in recent_days[-7:]] if recent_days else [],
+            "baseline_daily_avg": baseline_avg,
+            "recent_daily_avg": recent_avg,
+            "daily_spike_delta": spike_delta,
+        }
+
     def _build_resource_profiles(self, scenario_run: Optional[Any]) -> Dict[str, Dict[str, Any]]:
         profiles = copy.deepcopy(RESOURCE_DISCOVERY_BASE)
         if scenario_run is None:
@@ -341,34 +394,36 @@ class MockCostDataProvider(CostDataProvider):
             team_data = next((t for t in cost_data["teams"] if t["team_id"] == normalized), None)
             if not team_data:
                 return {"success": False, "error": f"Team '{team_name}' not found."}
-                
-            daily_costs = team_data.get("daily_costs", [])
-            recent_days = daily_costs[-days:] if daily_costs else []
-            spend_sum = sum(float(c.get("total_cost", 0)) for c in recent_days)
-            
-            # Simple aggregations
+
+            summary = self._build_scenario_cost_summary(team_data, days=days)
+            anomalies = ["Scenario active"]
+            if summary["daily_spike_delta"] > 0:
+                anomalies.append(
+                    f"Recent daily average increased by ${summary['daily_spike_delta']:.2f} versus the scenario baseline."
+                )
+
             return {
                 "success": True,
-                "team_name": team_name.title(),
-                "lead": f"{team_name} Lead",
+                "team_name": summary["team_name"],
+                "lead": summary["lead"],
                 "period": f"Last {days} days",
                 "retrieved_at": datetime.now().isoformat(),
                 "data_source": f"mock ({scenario_run.scenario_id})",
                 "budget": {
-                    "monthly_budget": "$2,400",
-                    "current_spend": f"${spend_sum:,.2f}",
-                    "forecast_month_end": f"${spend_sum * 1.2:,.2f}",
-                    "budget_used_percentage": f"{(spend_sum / 2400.0) * 100:.1f}%",
-                    "budget_status": self._get_budget_status((spend_sum / 2400.0) * 100)
+                    "monthly_budget": f"${summary['monthly_budget']:,.0f}",
+                    "current_spend": f"${summary['current_spend']:,.2f}",
+                    "forecast_month_end": f"${summary['forecast_month_end']:,.2f}",
+                    "budget_used_percentage": f"{summary['budget_used_percentage']:.1f}%",
+                    "budget_status": summary["budget_status"]
                 },
-                "subscriptions": ["sub-mock-001"],
+                "subscriptions": summary["subscriptions"],
                 "cost_breakdown": {
-                    "compute": f"${sum(float(c.get('compute_cost', 0)) for c in recent_days):,.2f}",
-                    "storage": f"${sum(float(c.get('storage_cost', 0)) for c in recent_days):,.2f}",
-                    "network": f"${sum(float(c.get('network_cost', 0)) for c in recent_days):,.2f}"
+                    "compute": f"${summary['compute_cost']:,.2f}",
+                    "storage": f"${summary['storage_cost']:,.2f}",
+                    "network": f"${summary['network_cost']:,.2f}"
                 },
-                "daily_trend": [float(c.get("total_cost", 0)) for c in recent_days[-7:]] if recent_days else [],
-                "anomalies": ["Scenario active"]
+                "daily_trend": summary["daily_trend"],
+                "anomalies": anomalies
             }
 
         # Fallback to legacy mock
@@ -410,25 +465,41 @@ class MockCostDataProvider(CostDataProvider):
         if scenario_run is not None:
             # Build from scenario
             cost_data = scenario_run.cost_data
+            primary_driver = None
             for team_data in cost_data["teams"]:
-                spend_sum = sum(float(c.get("total_cost", 0)) for c in team_data.get("daily_costs", []))
-                budget = 2400.0
-                total_budget += budget
-                total_spend += spend_sum
-                budget_pct = (spend_sum / budget) * 100
+                summary = self._build_scenario_cost_summary(team_data)
+                total_budget += summary["monthly_budget"]
+                total_spend += summary["current_spend"]
                 teams.append({
-                    "team": team_data["team_id"].title(),
-                    "budget": f"${budget:,}",
-                    "spend": f"${spend_sum:,.2f}",
-                    "percentage": f"{budget_pct:.1f}%",
-                    "status": "⚠️ OVER" if budget_pct > 100 else "✅ OK"
+                    "team": summary["team_name"],
+                    "team_id": summary["team_id"],
+                    "budget": f"${summary['monthly_budget']:,.0f}",
+                    "spend": f"${summary['current_spend']:,.2f}",
+                    "percentage": f"{summary['budget_used_percentage']:.1f}%",
+                    "status": "⚠️ OVER" if summary["budget_used_percentage"] > 100 else "✅ OK",
+                    "baseline_daily_avg": summary["baseline_daily_avg"],
+                    "recent_daily_avg": summary["recent_daily_avg"],
+                    "daily_spike_delta": summary["daily_spike_delta"],
                 })
+
+                if (
+                    primary_driver is None
+                    or summary["daily_spike_delta"] > primary_driver["daily_spike_delta"]
+                ):
+                    primary_driver = {
+                        "team": summary["team_name"],
+                        "team_id": summary["team_id"],
+                        "daily_spike_delta": summary["daily_spike_delta"],
+                        "baseline_daily_avg": summary["baseline_daily_avg"],
+                        "recent_daily_avg": summary["recent_daily_avg"],
+                    }
             
             return {
                 "success": True,
                 "retrieved_at": datetime.now().isoformat(),
                 "data_source": f"mock ({scenario_run.scenario_id})",
                 "teams": teams,
+                "primary_driver": primary_driver,
                 "totals": {
                     "total_budget": f"${total_budget:,}",
                     "total_spend": f"${total_spend:,.2f}",

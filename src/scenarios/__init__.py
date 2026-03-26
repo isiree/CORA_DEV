@@ -13,7 +13,8 @@ SCENARIO_IDS = [
     "scenario_2_tagging",
     "scenario_3_autoscaler",
     "scenario_4_forgotten_poc",
-    "scenario_5_app_misconfig"
+    "scenario_5_app_misconfig",
+    "scenario_legacy_mock",
 ]
 
 # Base template for cost
@@ -312,6 +313,77 @@ def _build_scenario_5_app_misconfig() -> ScenarioRun:
     
     return ScenarioRun("scenario_5_app_misconfig", cost, pipes)
 
+
+def _build_scenario_legacy_mock() -> ScenarioRun:
+    cost = copy.deepcopy(BASE_COST)
+    pipes = _base_pipelines()
+
+    ci_team = _get_team(cost, "ci-team")
+    rel_team = _get_team(cost, "release-team")
+    ops_team = _get_team(cost, "cloudops-team")
+
+    legacy_daily = {
+        "ci-team": 1850.0 / 30.0,
+        "release-team": 2650.0 / 30.0,
+        "cloudops-team": 3200.0 / 30.0,
+    }
+
+    for i in range(1, 31):
+        date_str = f"2025-01-{i:02d}"
+        for team in (ci_team, rel_team, ops_team):
+            team_id = team["team_id"]
+            total_cost = legacy_daily[team_id]
+            team["daily_costs"].append(
+                {
+                    "date": date_str,
+                    "total_cost": total_cost,
+                    "compute_cost": total_cost * 0.65,
+                    "storage_cost": total_cost * 0.2,
+                    "network_cost": total_cost * 0.1,
+                }
+            )
+
+    pipes["pipelines"].extend([
+        {
+            "pipeline_id": "pipe-legacy-rel-1",
+            "name": "deploy-new-api-gateway",
+            "team_id": "release-team",
+            "status": "success",
+            "started_at": "2025-01-27T10:00:00Z",
+            "finished_at": "2025-01-27T10:20:00Z",
+            "jobs": [{"job_id": "legacy-rel-1", "name": "terraform-apply", "status": "success"}],
+        },
+        {
+            "pipeline_id": "pipe-legacy-rel-2",
+            "name": "scale-release-infra",
+            "team_id": "release-team",
+            "status": "success",
+            "started_at": "2025-01-25T10:00:00Z",
+            "finished_at": "2025-01-25T10:35:00Z",
+            "jobs": [{"job_id": "legacy-rel-2", "name": "vm-provisioning", "status": "success"}],
+        },
+        {
+            "pipeline_id": "pipe-legacy-ci-1",
+            "name": "optimize-build-cache",
+            "team_id": "ci-team",
+            "status": "success",
+            "started_at": "2025-01-28T08:00:00Z",
+            "finished_at": "2025-01-28T08:15:00Z",
+            "jobs": [{"job_id": "legacy-ci-1", "name": "update-cache", "status": "success"}],
+        },
+        {
+            "pipeline_id": "pipe-legacy-ops-1",
+            "name": "dr-failover-test",
+            "team_id": "cloudops-team",
+            "status": "success",
+            "started_at": "2025-01-26T09:00:00Z",
+            "finished_at": "2025-01-26T10:00:00Z",
+            "jobs": [{"job_id": "legacy-ops-1", "name": "scale-dr-region", "status": "success"}],
+        },
+    ])
+
+    return ScenarioRun("scenario_legacy_mock", cost, pipes)
+
 def build_scenario_run(scenario_id: str) -> ScenarioRun:
     if scenario_id == "scenario_1_vm_destroy":
         return _build_scenario_1_vm_destroy()
@@ -323,5 +395,7 @@ def build_scenario_run(scenario_id: str) -> ScenarioRun:
         return _build_scenario_4_forgotten_poc()
     elif scenario_id == "scenario_5_app_misconfig":
         return _build_scenario_5_app_misconfig()
+    elif scenario_id == "scenario_legacy_mock":
+        return _build_scenario_legacy_mock()
     else:
         raise ValueError(f"Unknown scenario ID: {scenario_id}")
