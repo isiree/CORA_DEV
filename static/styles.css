@@ -8,15 +8,15 @@
 
 :root {
   /* Green – brand, health, connected */
-  --g50: #F0FDF4;
-  --g100: #DCFCE7;
-  --g200: #BBF7D0;
-  --g300: #86EFAC;
-  --g400: #4ADE80;
-  --g500: #22C55E;
-  --g600: #16A34A;
-  --g700: #15803D;
-  --g800: #166534;
+  --t50: #E6F7F7;
+  --t100: #CCF0F0;
+  --t200: #99E0E0;
+  --t300: #4DCCCC;
+  --t400: #00AAAA;
+  --t500: #009999;
+  --t600: #007A7A;
+  --t700: #005C5C;
+  --t800: #003D3D;
 
   /* Amber – cost anomaly, financial impact, warnings */
   --a50: #FFFBEB;
@@ -30,39 +30,45 @@
   --a800: #92400E;
 
   /* Light theme */
-  --bg-page: #F4FAF6;
-  --bg-rail: #0D1A12;
-  --bg-panel: #EBF4EF;
-  --bg-chat: #FAFCFB;
+  --bg-page: #FFFFFF;
+  --bg-rail: #003D3D;
+  --bg-panel: #E8F6F6;
+  --bg-chat: #FAFEFE;
   --bg-card: #FFFFFF;
-  --bg-input: #EDF5F0;
-  --bg-hover: #E2EFE8;
-  --bg-user: #D8F3E4;
-  --border: #DDE9E4;
-  --border-mid: #C4D9CE;
-  --border-strong: #A8C8B8;
-  --text-1: #0C1A12;
-  --text-2: #456358;
-  --text-3: #87A89C;
-  --text-user: #155630;
+  --bg-input: #E6F7F7;
+  --bg-hover: #CCF0F0;
+  --bg-user: #CCF0F0;
+  --border: #B8E0E0;
+  --border-mid: #99E0E0;
+  --border-strong: #4DCCCC;
+  --text-1: #081A1A;
+  --text-2: #2D6060;
+  --text-3: #5C9090;
+  --text-user: #003D3D;
 
-  --chip-cost-bg: var(--a100);
-  --chip-cost-fg: var(--a800);
-  --chip-pipe-bg: #EFF6FF;
+  --chip-cost-bg: #CCF0F0;
+  --chip-cost-fg: #005C5C;
+  --chip-pipe-bg: #DBEAFE;
   --chip-pipe-fg: #1D4ED8;
-  --chip-docs-bg: #F5F3FF;
-  --chip-docs-fg: #5B21B6;
-  --chip-tag-bg: #F0FDF4;
-  --chip-tag-fg: var(--g800);
+  --chip-docs-bg: #FEF3C7;
+  --chip-docs-fg: #92400E;
+  --chip-tag-bg: #F3E8FF;
+  --chip-tag-fg: #6B21A8;
 
-  --sev-high-bg: var(--a100);
-  --sev-high-fg: var(--a700);
+  --sev-high-bg: #FEF3C7;
+  --sev-high-fg: #92400E;
   --sev-crit-bg: #FEE2E2;
   --sev-crit-fg: #991B1B;
   --sev-med-bg: #EFF6FF;
   --sev-med-fg: #1D4ED8;
 
   --shadow-card: 0 1px 4px rgba(0, 25, 12, .06), 0 0 0 1px rgba(0, 25, 12, .04);
+  --shadow-sm: 0 1px 4px rgba(0,60,60,.10),
+               0 0 0 1px rgba(0,100,100,.06);
+  --shadow-md: 0 4px 14px rgba(0,60,60,.13),
+               0 1px 3px rgba(0,60,60,.08);
+  --shadow-lg: 0 8px 28px rgba(0,60,60,.16),
+               0 2px 6px rgba(0,60,60,.08);
 
   --r-sm: 5px;
   --r-md: 8px;
@@ -84,29 +90,29 @@
 }
 
 body.dark {
-  --bg-page: #080E0B;
-  --bg-rail: #050C08;
-  --bg-panel: #0D1912;
-  --bg-chat: #090F0C;
-  --bg-card: #132019;
-  --bg-input: #132019;
-  --bg-hover: #1A2D21;
-  --bg-user: #112A1A;
-  --border: #1E3428;
-  --border-mid: #2A4838;
-  --border-strong: #2D5040;
-  --text-1: #D8EEE3;
-  --text-2: #7AAF92;
-  --text-3: #3D6652;
-  --text-user: #86EFAC;
-  --chip-cost-bg: #2C1E06;
-  --chip-cost-fg: #FCD34D;
-  --chip-pipe-bg: #1A2540;
+  --bg-page: #061414;
+  --bg-rail: #020A0A;
+  --bg-panel: #0A1E1E;
+  --bg-chat: #061414;
+  --bg-card: #0D2020;
+  --bg-input: #0D2020;
+  --bg-hover: #122828;
+  --bg-user: #0A2828;
+  --border: #1A3C3C;
+  --border-mid: #255050;
+  --border-strong: #2E6060;
+  --text-1: #CCF0F0;
+  --text-2: #5C9090;
+  --text-3: #2D5050;
+  --text-user: #4DCCCC;
+  --chip-cost-bg: #0A2828;
+  --chip-cost-fg: #4DCCCC;
+  --chip-pipe-bg: #0D1D35;
   --chip-pipe-fg: #93C5FD;
-  --chip-docs-bg: #1D1838;
-  --chip-docs-fg: #C4B5FD;
-  --chip-tag-bg: #102018;
-  --chip-tag-fg: var(--g300);
+  --chip-docs-bg: #1F1408;
+  --chip-docs-fg: #FCD34D;
+  --chip-tag-bg: #1A1030;
+  --chip-tag-fg: #C4B5FD;
   --sev-high-bg: #2C1E06;
   --sev-high-fg: #FCD34D;
   --sev-crit-bg: #2D0D0D;
@@ -119,12 +125,12 @@ body.dark {
 body.dark .mbbl.agt {
   background: #132019;
   border-color: #2A4838;
-  border-left: 2px solid var(--g500);
+  border-left: 2px solid var(--t500);
 }
 
 body.dark .mbbl.usr {
   background: #112A1A;
-  color: #86EFAC;
+  color: #99E0E0;
 }
 
 body.dark .status-card,
@@ -145,7 +151,7 @@ body.dark .ctx-hdr-lbl {
 
 body.dark .chip.cost {
   background: #1E3010;
-  color: #86EFAC;
+  color: #99E0E0;
 }
 
 body.dark .chip.pipe {
@@ -170,8 +176,8 @@ body.dark .hist-btn {
 }
 
 body.dark .hist-btn:hover {
-  border-color: var(--g500);
-  color: var(--g400);
+  border-color: var(--t500);
+  color: var(--t400);
   background: #1A2D21;
 }
 
@@ -274,7 +280,7 @@ body {
 }
 
 .rl-icon.on svg {
-  stroke: #4ADE80;
+  stroke: #4DCCCC;
 }
 
 .rl-spacer {
@@ -434,7 +440,7 @@ body.dark .cfg-lbl {
 }
 
 .mode-btn.on {
-  background: var(--g500);
+  background: var(--t500);
   color: #fff
 }
 
@@ -461,12 +467,12 @@ body.dark .cfg-lbl {
 
 .cfg-sel:focus {
   outline: none;
-  border-color: var(--g400);
+  border-color: var(--t400);
   box-shadow: 0 0 0 3px rgba(34, 197, 94, .1)
 }
 
 .cfg-sel:hover:not(:disabled) {
-  border-color: var(--g400)
+  border-color: var(--t400)
 }
 
 .cfg-sel:disabled {
@@ -492,7 +498,7 @@ body.dark .cfg-lbl {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--g500);
+  background: var(--t500);
   flex-shrink: 0;
   animation: stpulse 2.5s ease infinite
 }
@@ -522,42 +528,187 @@ body.dark .cfg-lbl {
   margin-top: 1px
 }
 
-.new-btn {
+.new-btn, .new-inv-btn {
+  width: calc(100% - 32px);
+  margin: 20px 16px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--t500);
+  color: #FFFFFF;
+  font-family: var(--font);
+  font-size: var(--text-base);
+  font-weight: 500;
+  padding: 9px 12px;
+  cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin: 12px 14px 14px;
-  padding: 10px 12px;
-  border: 1px dashed var(--border-mid);
-  border-radius: var(--r-md);
-  background: transparent;
-  font-family: var(--font);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-2);
-  cursor: pointer;
-  transition: var(--tr);
-  width: calc(100% - 28px)
+  box-shadow: 0 3px 10px rgba(0,153,153,.35),
+              0 1px 3px rgba(0,153,153,.2);
+  letter-spacing: .01em;
+  transition: all 150ms ease;
 }
 
-.new-btn svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
+.new-btn:hover, .new-inv-btn:hover {
+  background: var(--t600);
+  transform: translateY(-1px);
+}
+
+.new-btn svg, .new-inv-btn svg {
+  width: 13px;
+  height: 13px;
   fill: none;
-  stroke-width: 2;
-  stroke-linecap: round
+  stroke: #FFFFFF;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  flex-shrink: 0;
 }
 
-.new-btn:hover {
-  border-color: var(--g500);
-  color: var(--g700);
-  background: var(--g50)
+.mbbl.agt, .msg-agent {
+  position: relative;
 }
 
-body.dark .new-btn:hover {
-  color: var(--g400);
-  background: var(--bg-hover)
+.msg-expand-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  color: var(--text-2);
+}
+
+.mbbl.agt:hover .msg-expand-btn,
+.msg-agent:hover .msg-expand-btn {
+  opacity: 1;
+}
+
+.msg-expand-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--t400);
+}
+
+.msg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.msg-modal-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 32px 36px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,60,60,.3);
+  border: 1.5px solid var(--border);
+}
+
+.msg-modal-card::-webkit-scrollbar {
+  width: 4px;
+}
+
+.msg-modal-card::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 20px;
+}
+
+.msg-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-2);
+  transition: all 150ms ease;
+}
+
+.msg-modal-close:hover {
+  background: var(--bg-hover);
+  border-color: var(--t400);
+}
+
+.msg-modal-content {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-1);
+  padding-top: 8px;
+}
+
+.msg-modal-content h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--t700);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.msg-modal-content p {
+  margin-bottom: 10px;
+}
+
+.msg-modal-content ul {
+  margin: 6px 0 10px 18px;
+}
+
+.msg-modal-content li {
+  margin-bottom: 5px;
+}
+
+.msg-modal-content code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text-1);
+}
+
+body.dark .msg-modal-card {
+  background: #0D2828;
+  border-color: #1A4040;
+}
+
+body.dark .msg-modal-close {
+  background: #0D2828;
+  border-color: #1A4040;
+  color: #CCF0F0;
+}
+
+body.dark .msg-modal-content {
+  color: #CCF0F0;
+}
+
+body.dark .msg-modal-content h3 {
+  color: #4DCCCC;
+  border-bottom-color: #1A4040;
 }
 
 /* ── Main ── */
@@ -609,8 +760,8 @@ body.dark .new-btn:hover {
 }
 
 .topbar-mode-pill.mock {
-  background: var(--g100);
-  color: var(--g800);
+  background: var(--t100);
+  color: var(--t800);
 }
 
 .topbar-mode-pill.live {
@@ -620,7 +771,7 @@ body.dark .new-btn:hover {
 
 body.dark .topbar-mode-pill.mock {
   background: var(--bg-user);
-  color: var(--g300);
+  color: var(--t300);
 }
 
 body.dark .topbar-mode-pill.live {
@@ -647,8 +798,8 @@ body.dark .topbar-mode-pill.live {
 }
 
 .tb-badge.mock {
-  background: var(--g100);
-  color: var(--g800)
+  background: var(--t100);
+  color: var(--t800)
 }
 
 .tb-badge.live {
@@ -658,7 +809,7 @@ body.dark .topbar-mode-pill.live {
 
 body.dark .tb-badge.mock {
   background: #112A1A;
-  color: #86EFAC;
+  color: #99E0E0;
 }
 
 body.dark .tb-badge.live {
@@ -685,7 +836,7 @@ body.dark .tb-badge.live {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--g500)
+  background: var(--t500)
 }
 
 .tb-icon-btn {
@@ -715,15 +866,15 @@ body.dark .tb-badge.live {
 
 .tb-icon-btn:hover {
   background: var(--bg-hover);
-  border-color: var(--g400)
+  border-color: var(--t400)
 }
 
 .tb-icon-btn:hover svg {
-  stroke: var(--g700)
+  stroke: var(--t700)
 }
 
 body.dark .tb-icon-btn:hover svg {
-  stroke: var(--g400)
+  stroke: var(--t400)
 }
 
 #mock-banner {
@@ -829,7 +980,7 @@ body.dark .bnr-text {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--g800);
+  background: var(--t800);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -886,7 +1037,7 @@ body.dark .bnr-text {
 }
 
 .mavt.agent {
-  background: var(--g700);
+  background: var(--t700);
   color: #fff
 }
 
@@ -913,7 +1064,7 @@ body.dark .bnr-text {
 .mbbl.agt {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-left: 2px solid var(--g500);
+  border-left: 2px solid var(--t500);
   box-shadow: var(--shadow-card);
   border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
   max-height: 420px;
@@ -993,7 +1144,7 @@ body.dark .mbbl.agt pre {
 .mbbl.agt pre code {
   background: none;
   border: none;
-  color: var(--g300);
+  color: var(--t300);
   font-size: var(--text-sm);
   padding: 0
 }
@@ -1061,7 +1212,7 @@ body.dark .cost-val {
 }
 
 .chip.active {
-  border-color: var(--g400)
+  border-color: var(--t400)
 }
 
 .sources {
@@ -1168,7 +1319,7 @@ body.dark .cost-val {
   padding: 10px 13px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-left: 2px solid var(--g500);
+  border-left: 2px solid var(--t500);
   border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
   display: flex;
   gap: 4px;
@@ -1179,7 +1330,7 @@ body.dark .cost-val {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--g400);
+  background: var(--t400);
   animation: tdot .75s ease-in-out infinite
 }
 
@@ -1253,13 +1404,13 @@ body.dark .cost-val {
 }
 
 .history-btn:hover {
-  border-color: var(--g500);
-  color: var(--g700);
+  border-color: var(--t500);
+  color: var(--t700);
   background: var(--bg-hover)
 }
 
 body.dark .history-btn:hover {
-  color: var(--g400)
+  color: var(--t400)
 }
 
 .history-btn.danger {
@@ -1309,13 +1460,13 @@ body.dark .history-btn.danger:hover {
 }
 
 .hist-btn:hover {
-  border-color: var(--g500);
-  color: var(--g700);
+  border-color: var(--t500);
+  color: var(--t700);
   background: var(--bg-hover);
 }
 
 body.dark .hist-btn:hover {
-  color: var(--g400);
+  color: var(--t400);
 }
 
 .hist-btn.danger {
@@ -1478,7 +1629,7 @@ body.dark .hist-btn.danger:hover {
 }
 
 .history-line.user .history-role {
-  color: var(--g600);
+  color: var(--t600);
   font-weight: 600
 }
 
@@ -1526,7 +1677,7 @@ body.dark .hist-btn.danger:hover {
 }
 
 .inp-wrap:focus-within {
-  border-color: var(--g400);
+  border-color: var(--t400);
   background: var(--bg-card);
   box-shadow: 0 0 0 3px rgba(34, 197, 94, .08)
 }
@@ -1557,7 +1708,7 @@ body.dark .hist-btn.danger:hover {
   height: 38px;
   border-radius: 50%;
   border: none;
-  background: var(--g500);
+  background: var(--t500);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -1568,7 +1719,7 @@ body.dark .hist-btn.danger:hover {
 }
 
 .send-btn:hover {
-  background: var(--g600);
+  background: var(--t600);
   transform: scale(1.06)
 }
 
@@ -1608,7 +1759,7 @@ body.dark .hist-btn.danger:hover {
 .wlc-mark {
   width: 52px;
   height: 52px;
-  background: var(--g800);
+  background: var(--t800);
   border-radius: 15px;
   margin: 0 auto 18px;
   display: flex;
@@ -1670,8 +1821,8 @@ body.dark .starter {
 }
 
 .starter:hover {
-  background: var(--g500);
-  border-color: var(--g500);
+  background: var(--t500);
+  border-color: var(--t500);
   color: #fff;
   transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(34, 197, 94, .18)
@@ -1905,7 +2056,7 @@ body.dark .metric-val {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--g500);
+  background: var(--t500);
   flex-shrink: 0;
   margin-top: 5px
 }
@@ -1970,14 +2121,14 @@ body.dark .metric-val {
 .res-ico svg {
   width: 10px;
   height: 10px;
-  stroke: var(--g600);
+  stroke: var(--t600);
   fill: none;
   stroke-width: 1.8;
   stroke-linecap: round
 }
 
 body.dark .res-ico svg {
-  stroke: var(--g400)
+  stroke: var(--t400)
 }
 
 .res-name {
@@ -2169,18 +2320,18 @@ body.dark .sett-field-label {
 .sett-conn-pill.connected {
   border-color: rgba(34, 197, 94, .22);
   background: rgba(34, 197, 94, .08);
-  color: var(--g700);
+  color: var(--t700);
 }
 
 body.dark .sett-conn-pill.connected {
-  color: var(--g300);
+  color: var(--t300);
 }
 
 .sett-conn-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--g500);
+  background: var(--t500);
 }
 
 .sett-kb-stats {
@@ -2255,7 +2406,7 @@ body.dark .sett-about-label {
   height: 14px;
   border-radius: 50%;
   border: 2px solid rgba(34, 197, 94, .25);
-  border-top-color: var(--g600);
+  border-top-color: var(--t600);
   animation: settspin .8s linear infinite;
 }
 
@@ -2301,7 +2452,7 @@ body.dark .sett-about-label {
 .about-guide-ico {
   width: 16px;
   height: 16px;
-  color: var(--g600);
+  color: var(--t600);
   margin-top: 2px;
 }
 
@@ -2340,7 +2491,7 @@ body.dark .sett-about-label {
 }
 
 .about-tools-toggle:hover {
-  border-color: var(--g500);
+  border-color: var(--t500);
   background: var(--bg-hover);
 }
 
@@ -2421,4 +2572,175 @@ body.dark .sett-about-label {
   font-size: var(--text-sm);
   color: var(--text-2);
   line-height: 1.6;
+}
+
+/* Chat watermark — make it visible in dark mode */
+body.dark .ce-mark,
+body.dark #chat-spacer .ce-mark {
+  background: var(--t600);
+  opacity: 0.22;
+}
+
+body.dark .ce-name {
+  color: var(--t300);
+  opacity: 0.2;
+}
+
+body.dark .ce-sub {
+  color: var(--t400);
+  opacity: 0.5;
+}
+
+/* Rail icons — more prominent on dark teal rail */
+body.dark .rl-icon svg,
+body.dark .rl-ico svg {
+  stroke: rgba(204,240,240,.6);
+}
+
+body.dark .rl-icon:hover svg,
+body.dark .rl-ico:hover svg {
+  stroke: rgba(204,240,240,.95);
+}
+
+body.dark .rl-icon.on svg,
+body.dark .rl-ico.on svg {
+  stroke: #4DCCCC;
+  filter: drop-shadow(0 0 4px rgba(77,204,204,.7));
+}
+
+body.dark .rl-btn svg,
+body.dark .rl-theme svg {
+  stroke: rgba(204,240,240,.55);
+}
+
+/* Dark mode surface contrast — 
+   widen the gap between layers */
+body.dark #cfg,
+body.dark .cfg-inner {
+  background: #0A1E1E;
+  border-right-color: #1A3C3C;
+}
+
+body.dark #ctx,
+body.dark .ctx-panel {
+  background: #0A1E1E;
+  border-left-color: #1A3C3C;
+}
+
+body.dark .ctx-hdr {
+  background: #005C5C;
+}
+
+body.dark .status-card,
+body.dark .metric-card,
+body.dark .metric,
+body.dark .tl-row,
+body.dark .tl-item,
+body.dark .res-row,
+body.dark .res-item {
+  background: #0D2828;
+  border-color: #1A4040;
+}
+
+body.dark .mbbl.agt {
+  background: #0D2828;
+  border-color: #1A4040;
+  border-left-color: var(--t400);
+}
+
+body.dark .mbbl.usr {
+  background: #0A2828;
+  color: #4DCCCC;
+}
+
+body.dark #topbar,
+body.dark .topbar {
+  background: #061414;
+  border-bottom-color: #1A3C3C;
+}
+
+body.dark #input-bar,
+body.dark .input-bar {
+  background: #061414;
+  border-top-color: #1A3C3C;
+}
+
+body.dark .inp-wrap,
+body.dark .inp,
+body.dark #chat-inp,
+body.dark #msg-input {
+  background: #0D2828;
+  border-color: #1A4040;
+  color: #CCF0F0;
+}
+
+body.dark .cfg-lbl,
+body.dark .ctx-sec-lbl,
+body.dark .sb-label {
+  color: #4DCCCC;
+}
+
+body.dark .logo-name {
+  color: #CCF0F0;
+}
+
+body.dark .logo-sub {
+  color: var(--t400);
+}
+
+body.dark .st-dot {
+  background: var(--t400);
+  box-shadow: 0 0 0 3px rgba(0,170,170,.25);
+}
+
+/* Dark mode chip colours */
+body.dark .chip.cost,
+body.dark .tool-chip.cost {
+  background: #0A2828;
+  color: #4DCCCC;
+}
+
+body.dark .chip.pipe,
+body.dark .tool-chip.pipe {
+  background: #0D1D35;
+  color: #93C5FD;
+}
+
+body.dark .chip.docs,
+body.dark .tool-chip.docs {
+  background: #2A1F08;
+  color: #FCD34D;
+}
+
+body.dark .chip.tag,
+body.dark .tool-chip.tag {
+  background: #1A1030;
+  color: #C4B5FD;
+}
+
+/* Settings tool cards use teal bg — 
+   override chip colours to contrast */
+.settings-tool-card .chip.cost,
+.settings-tool-card [class*="cost"],
+.tool-card .chip.cost {
+  background: #003D3D;
+  color: #CCF0F0;
+  border: 1px solid #4DCCCC;
+}
+
+/* If the chips use inline label classes, 
+   also add: */
+.sett-tool-label[data-tool="cost_api"],
+.tool-pill.cost-api {
+  background: #003D3D;
+  color: #CCF0F0;
+  border: 1px solid #4DCCCC;
+}
+
+/* General rule: any teal-background chip 
+   that shows cost_api must have dark bg */
+[style*="background: var(--chip-cost-bg)"],
+[style*="background:var(--chip-cost-bg)"] {
+  background: #003D3D !important;
+  color: #CCF0F0 !important;
 }

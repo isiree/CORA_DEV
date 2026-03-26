@@ -13,7 +13,8 @@ const SCENARIOS = {
   'scenario_2_tagging': 'Scenario 2 — Tagging Issue & Cost Misattribution',
   'scenario_3_autoscaler': 'Scenario 3 — Autoscaler Not Scaling Down',
   'scenario_4_forgotten_poc': 'Scenario 4 — Forgotten POC Environment',
-  'scenario_5_app_misconfig': 'Scenario 5 — App-Level Misconfiguration'
+  'scenario_5_app_misconfig': 'Scenario 5 — App-Level Misconfiguration',
+  'scenario_legacy_mock': 'Legacy Mock — Generic Hard-Coded Dataset'
 };
 
 const TEAMS = ["All teams", "ci-team", "release-team", "cloudops-team"];
@@ -22,10 +23,10 @@ function Rail({ dark, toggleTheme, activeNav, setActiveNav, settingsOpen, setSet
   return (
     <nav id="rail">
       <svg className="rl-logo" viewBox="0 0 26 26" fill="none">
-        <rect width="26" height="26" rx="6" fill="#166534" />
-        <rect x="5" y="16" width="3.5" height="6" rx="1.1" fill="#4ADE80" />
-        <rect x="10.5" y="12" width="3.5" height="10" rx="1.1" fill="#4ADE80" opacity=".7" />
-        <rect x="16" y="8" width="3.5" height="14" rx="1.1" fill="#4ADE80" opacity=".42" />
+        <rect width="26" height="26" rx="6" fill="#009999" />
+        <rect x="5" y="16" width="3.5" height="6" rx="1.1" fill="#4DCCCC" />
+        <rect x="10.5" y="12" width="3.5" height="10" rx="1.1" fill="#4DCCCC" opacity=".7" />
+        <rect x="16" y="8" width="3.5" height="14" rx="1.1" fill="#4DCCCC" opacity=".42" />
         <path d="M6.75 15.5L12.25 11.5L17.75 7.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx="17.75" cy="7.5" r="1.6" fill="white" />
       </svg>
@@ -102,10 +103,10 @@ function ConfigPanel({ mode, setMode, scenario, setScenario, teamFilter, setTeam
         <div className="cfg-logo">
           <div className="logo-row">
             <svg className="logo-mark" viewBox="0 0 32 32" fill="none">
-              <rect width="32" height="32" rx="8" fill="#166534" />
-              <rect x="6" y="19" width="4" height="7" rx="1.3" fill="#4ADE80" />
-              <rect x="12.5" y="14.5" width="4" height="11.5" rx="1.3" fill="#4ADE80" opacity=".7" />
-              <rect x="19" y="10" width="4" height="16" rx="1.3" fill="#4ADE80" opacity=".42" />
+              <rect width="32" height="32" rx="8" fill="#009999" />
+              <rect x="6" y="19" width="4" height="7" rx="1.3" fill="#4DCCCC" />
+              <rect x="12.5" y="14.5" width="4" height="11.5" rx="1.3" fill="#4DCCCC" opacity=".7" />
+              <rect x="19" y="10" width="4" height="16" rx="1.3" fill="#4DCCCC" opacity=".42" />
               <path d="M8 18.5L14.5 14L21 9.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               <circle cx="21" cy="9.5" r="2" fill="white" />
             </svg>
@@ -156,7 +157,7 @@ function ConfigPanel({ mode, setMode, scenario, setScenario, teamFilter, setTeam
               <span className="st-name">{isMock ? 'Mock mode' : 'Live mode — Azure connected'}</span>
             </div>
             <div className="st-sub">
-              {isMock ? `Scenario ${scenario} of 5 active` : 'GitLab + Cost Management API'}
+              {isMock ? `${SCENARIOS[scenario] || scenario} active (${Object.keys(SCENARIOS).length} total)` : 'GitLab + Cost Management API'}
             </div>
           </div>
         </div>
@@ -240,7 +241,7 @@ function parseMarkdown(text) {
     .replace(/^(.+)/, '<p>$1</p>');
 }
 
-function ChatMessage({ m }) {
+function ChatMessage({ m, setExpandedMsg }) {
   const isUsr = m.role === 'user';
   const [activeTool, setActiveTool] = useState(null);
   const steps = m.steps || [];
@@ -256,75 +257,95 @@ function ChatMessage({ m }) {
     return parseMarkdown(raw);
   }, [m.content, isUsr]);
 
+  const messageContent = agentHtml;
+
   return (
     <div className={`mrow ${isUsr ? 'usr' : ''}`}>
       <div className={`mavt ${isUsr ? 'user' : 'agent'}`}>{isUsr ? 'U' : 'CR'}</div>
-      <div className={`mbbl ${isUsr ? 'usr' : 'agt'}`}>
-        {isUsr ? (
-          m.content
-        ) : (
-          <>
-            <div dangerouslySetInnerHTML={{ __html: agentHtml }} />
-            {m.toolsUsed?.length > 0 && (
-              <div className="chips">
-                {m.toolsUsed.map((t, i) => (
-                  <button
-                    type="button"
-                    key={i}
-                    onClick={() => setActiveTool(activeTool === t ? null : t)}
-                    className={`chip ${t.includes('cost') ? 'cost' : t.includes('pipe') ? 'pipe' : t.includes('docs') || t.includes('historical') ? 'docs' : 'tag'} ${activeTool === t ? 'active' : ''}`}
-                    title="Toggle tool details"
-                  >
-                    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-                    {t.replace('_tool', '').replace('data_api', 'Cost API').replace('historical', 'Docs')}
-                  </button>
-                ))}
-              </div>
-            )}
-            {m.sources?.length > 0 && (
-              <div className="sources">
-                <div className="sources-title">Sources</div>
-                <div className="sources-list">
-                  {m.sources.map((s, i) => (
-                    <span key={i} className="source-pill">{s}</span>
+      {isUsr ? (
+        <div className="mbbl usr">
+          {m.content}
+        </div>
+      ) : (
+        <div className="msg-agent">
+          <div className="mbbl agt">
+            <>
+              <div dangerouslySetInnerHTML={{ __html: agentHtml }} />
+              {m.toolsUsed?.length > 0 && (
+                <div className="chips">
+                  {m.toolsUsed.map((t, i) => (
+                    <button
+                      type="button"
+                      key={i}
+                      onClick={() => setActiveTool(activeTool === t ? null : t)}
+                      className={`chip ${t.includes('cost') ? 'cost' : t.includes('pipe') ? 'pipe' : t.includes('docs') || t.includes('historical') ? 'docs' : 'tag'} ${activeTool === t ? 'active' : ''}`}
+                      title="Toggle tool details"
+                    >
+                      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                      {t.replace('_tool', '').replace('data_api', 'Cost API').replace('historical', 'Docs')}
+                    </button>
                   ))}
                 </div>
-              </div>
-            )}
-            {filteredSteps.length > 0 && (
-              <div className="tool-details">
-                <div className="tool-details-title">
-                  Tool details{activeTool ? `: ${activeTool}` : ''}
-                  {activeTool && (
-                    <button type="button" className="tool-details-clear" onClick={() => setActiveTool(null)}>
-                      Show all
-                    </button>
-                  )}
+              )}
+              {m.sources?.length > 0 && (
+                <div className="sources">
+                  <div className="sources-title">Sources</div>
+                  <div className="sources-list">
+                    {m.sources.map((s, i) => (
+                      <span key={i} className="source-pill">{s}</span>
+                    ))}
+                  </div>
                 </div>
-                {filteredSteps.map((step) => (
-                  <details key={step.number} className="tool-step" open={filteredSteps.length === 1}>
-                    <summary>{step.tool}</summary>
-                    <div className="tool-step-body">
-                      <div className="tool-step-row"><span>Query</span><code>{step.query}</code></div>
-                      <div className="tool-step-row"><span>Result</span><pre><code>{step.result_preview}</code></pre></div>
-                      {step.sources?.length > 0 && (
-                        <div className="tool-step-row">
-                          <span>Sources</span>
-                          <div className="sources-list">
-                            {step.sources.map((s, i) => (
-                              <span key={i} className="source-pill">{s}</span>
-                            ))}
+              )}
+              {filteredSteps.length > 0 && (
+                <div className="tool-details">
+                  <div className="tool-details-title">
+                    Tool details{activeTool ? `: ${activeTool}` : ''}
+                    {activeTool && (
+                      <button type="button" className="tool-details-clear" onClick={() => setActiveTool(null)}>
+                        Show all
+                      </button>
+                    )}
+                  </div>
+                  {filteredSteps.map((step) => (
+                    <details key={step.number} className="tool-step" open={filteredSteps.length === 1}>
+                      <summary>{step.tool}</summary>
+                      <div className="tool-step-body">
+                        <div className="tool-step-row"><span>Query</span><code>{step.query}</code></div>
+                        <div className="tool-step-row"><span>Result</span><pre><code>{step.result_preview}</code></pre></div>
+                        {step.sources?.length > 0 && (
+                          <div className="tool-step-row">
+                            <span>Sources</span>
+                            <div className="sources-list">
+                              {step.sources.map((s, i) => (
+                                <span key={i} className="source-pill">{s}</span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </>
+          </div>
+          <button
+            className="msg-expand-btn"
+            onClick={() => setExpandedMsg(messageContent)}
+            title="Expand response"
+          >
+            <svg viewBox="0 0 24 24" width="11" height="11"
+                 fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -663,7 +684,7 @@ function SettingsPanel({ mode }) {
   );
 }
 
-function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCtxOpen, view, investigations, onDeleteInvestigation, onClearHistory, onExportInvestigation }) {
+function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCtxOpen, view, investigations, onDeleteInvestigation, onClearHistory, onExportInvestigation, setExpandedMsg }) {
   const isMock = mode === 'Mock';
   const [inp, setInp] = useState("");
   const chatRef = useRef(null);
@@ -691,7 +712,7 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
         <span className="topbar-scenario-label">{isMock ? scenarioLabel : 'Azure + GitLab'}</span>
         <div className="tb-right">
           <span className="tb-conn"><span className="conn-dot"></span>Connected</span>
-          <button className="tb-icon-btn" onClick={() => setCtxOpen(!ctxOpen)} title="Toggle context panel">
+          <button className="tb-icon-btn" onClick={() => setCtxOpen((prev) => !prev)} title="Toggle context panel">
             <svg viewBox="0 0 24 24" stroke="currentColor" fill="none">
               <polyline points={ctxOpen ? "15 18 9 12 15 6" : "9 18 15 12 9 6"} />
             </svg>
@@ -734,7 +755,7 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
                   <div className="ce-sub">Select a scenario and send a message to begin your investigation.</div>
                 </div>
                 <div className="chat-inner">
-                  {messages.map((m, i) => <ChatMessage key={i} m={m} />)}
+                  {messages.map((m, i) => <ChatMessage key={i} m={m} setExpandedMsg={setExpandedMsg} />)}
                   {loading && <TypingIndicator />}
                 </div>
               </div>
@@ -859,6 +880,7 @@ function CoraApp() {
   const [loading, setLoading] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(true);
   const [contextData, setContextData] = useState(null);
+  const [expandedMsg, setExpandedMsg] = useState(null);
   const [activeNav, setActiveNav] = useState('chat');
   const [investigations, setInvestigations] = useState([]);
   const [currentStartAt, setCurrentStartAt] = useState(() => new Date().toLocaleString());
@@ -1129,9 +1151,37 @@ function CoraApp() {
           onDeleteInvestigation={handleDeleteInvestigation}
           onClearHistory={handleClearHistory}
           onExportInvestigation={handleExportInvestigation}
+          setExpandedMsg={setExpandedMsg}
         />
       )}
       <ContextPanel open={ctxOpen} contextData={contextData} />
+      {expandedMsg !== null && (
+        <div
+          className="msg-modal-overlay"
+          onClick={() => setExpandedMsg(null)}
+        >
+          <div
+            className="msg-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="msg-modal-close"
+              onClick={() => setExpandedMsg(null)}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13"
+                   fill="none" stroke="currentColor"
+                   strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <div
+              className="msg-modal-content"
+              dangerouslySetInnerHTML={{ __html: expandedMsg }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
