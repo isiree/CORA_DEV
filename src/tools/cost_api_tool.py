@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
 from ..providers import get_cost_provider, is_live_mode, is_azure_live_mode
+from ..g import g
 
 load_dotenv()
 
@@ -42,12 +43,25 @@ class CostAPITool:
     
     def get_team_spending(self, team_name: str, days: int = 30) -> dict:
         """Get spending data for a specific team."""
-        cached = self.cache.get("cost_api", team_name=team_name, days=days)
+        scenario_run = getattr(g, "scenario_run", None)
+        scenario_id = getattr(scenario_run, "scenario_id", "default")
+        cached = self.cache.get(
+            "cost_api",
+            scenario_id=scenario_id,
+            team_name=team_name,
+            days=days,
+        )
         if cached:
             return cached
         
         result = self.provider.get_team_spending(team_name, days)
-        self.cache.set("cost_api", result, team_name=team_name, days=days)
+        self.cache.set(
+            "cost_api",
+            result,
+            scenario_id=scenario_id,
+            team_name=team_name,
+            days=days,
+        )
         return result
     
     def get_all_teams_summary(self) -> dict:
@@ -280,6 +294,18 @@ def cost_api_tool(query: str) -> str:
         output = [f"📊 ALL TEAMS COST SUMMARY ({data_source} {mode_indicator})", "=" * 40]
         for team_data in result["teams"]:
             output.append(f"{team_data['status']} {team_data['team']}: {team_data['spend']} / {team_data['budget']} ({team_data['percentage']})")
+            if "daily_spike_delta" in team_data:
+                output.append(
+                    f"   Daily avg change: ${team_data['daily_spike_delta']:.2f} "
+                    f"(baseline ${team_data['baseline_daily_avg']:.2f} -> recent ${team_data['recent_daily_avg']:.2f})"
+                )
+        if result.get("primary_driver") and result["primary_driver"]["daily_spike_delta"] > 0:
+            driver = result["primary_driver"]
+            output.append("-" * 40)
+            output.append(
+                "PRIMARY COST SPIKE DRIVER: "
+                f"{driver['team']} (+${driver['daily_spike_delta']:.2f}/day recent average vs baseline)"
+            )
         output.append("-" * 40)
         output.append(f"TOTAL: {result['totals']['total_spend']} / {result['totals']['total_budget']} ({result['totals']['overall_percentage']})")
         return "\n".join(output)

@@ -336,8 +336,11 @@ Provide analysis focused on cost impact:""")
         Returns:
             Dictionary with deployment data
         """
+        scenario_run = getattr(g, "scenario_run", None)
+        scenario_id = getattr(scenario_run, "scenario_id", "default")
+
         if _is_mock_mode():
-            cache_key = f"mock_{team_name}_{days}"
+            cache_key = f"mock_{scenario_id}_{team_name}_{days}"
             cached = self.cache.get("pipeline", team_name=cache_key)
             if cached:
                 return cached
@@ -349,7 +352,7 @@ Provide analysis focused on cost impact:""")
             return result
 
         # Check cache
-        cache_key = f"{'live' if self._is_live_mode() else 'mock'}_{team_name}_{days}"
+        cache_key = f"{'live' if self._is_live_mode() else 'mock'}_{scenario_id}_{team_name}_{days}"
         cached = self.cache.get("pipeline", team_name=cache_key)
         if cached:
             return cached
