@@ -77,7 +77,7 @@ class CloudCostAgent:
     def _create_agent(self) -> AgentExecutor:
         """Create the ReAct agent with tools."""
         
-        system_prompt = """You are an expert Cloud Cost Optimization Assistant for ABC Company.
+        system_prompt = """{scenario_context}You are an expert Cloud Cost Optimization Assistant for ABC Company.
 
 Your role is to help users understand and optimize their cloud spending by:
 1. Searching company policies and governance documents
@@ -122,18 +122,31 @@ Always end with a clear summary and any relevant recommendations based on ABC Co
             return_intermediate_steps=True
         )
     
-    def query(self, question: str, chat_history: Optional[list] = None) -> dict:
+    def query(
+        self,
+        question: str,
+        chat_history: Optional[list] = None,
+        scenario_context: Optional[str] = None,
+    ) -> dict:
         """
         Process a user query.
         
         Args:
             question: User's question about cloud costs
             chat_history: Optional conversation history
+            scenario_context: Optional mock-scenario grounding context
         
         Returns:
             Dictionary with answer and metadata
         """
-        input_dict = {"input": question}
+        scenario_context_block = ""
+        if os.getenv("USE_LIVE_DATA", "false").lower() != "true" and scenario_context:
+            scenario_context_block = f"{scenario_context.strip()}\n\n"
+
+        input_dict = {
+            "input": question,
+            "scenario_context": scenario_context_block,
+        }
         if chat_history:
             input_dict["chat_history"] = chat_history
         

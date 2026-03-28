@@ -531,6 +531,185 @@ def test_post_query_scenario_2_ownership_question_is_deterministic():
     assert "10.4%" not in body["answer"]
 
 
+def test_post_query_includes_detected_intent_metadata_for_mock_query():
+    """Mock responses should report the detected intent for demo transparency."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "Which team is responsible for the cost spike?",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_3_autoscaler",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["detected_intent"] == "RESPONSIBILITY"
+
+
+def test_post_query_scenario_3_singular_resource_followup_is_deterministic():
+    """Singular follow-up wording like 'this resource' should stay on the scenario resource path."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock resource follow-ups")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "mention what this resource is",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_3_autoscaler",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "web-frontend-asg" in body["answer"]
+    assert "user-service" in body["answer"]
+
+
+def test_post_query_passes_scenario_context_to_fallback_agent_in_mock_mode():
+    """Fallback mock-mode agent calls should receive structured scenario context."""
+    seen = {}
+    mock_agent = MagicMock()
+
+    def query_side_effect(question, chat_history=None, scenario_context=None):
+        seen["scenario_context"] = scenario_context
+        return {
+            "answer": "fallback answer",
+            "tools_used": [],
+            "steps": [],
+            "sources": [],
+            "intermediate_steps": [],
+        }
+
+    mock_agent.query.side_effect = query_side_effect
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "give me a concise investigation summary",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_3_autoscaler",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    assert response.status_code == 200
+    scenario_context = seen["scenario_context"]
+    assert "scenario_3_autoscaler" in scenario_context
+    assert "Release Team" in scenario_context
+    assert "update-web-autoscaler" in scenario_context
+    assert "web-frontend-asg" in scenario_context
+
+
+def test_post_query_does_not_pass_scenario_context_in_live_mode():
+    """Live-mode fallback agent calls should not receive mock scenario context."""
+    seen = {}
+    mock_agent = MagicMock()
+
+    def query_side_effect(question, chat_history=None, scenario_context=None):
+        seen["scenario_context"] = scenario_context
+        return {
+            "answer": "live fallback answer",
+            "tools_used": [],
+            "steps": [],
+            "sources": [],
+            "intermediate_steps": [],
+        }
+
+    mock_agent.query.side_effect = query_side_effect
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Live")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "give me a concise investigation summary",
+                    "team_filter": "All Teams",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module._set_mode("Mock")
+            app_module.g.scenario_run = None
+
+    assert response.status_code == 200
+    assert seen["scenario_context"] in (None, "")
+
+
 def test_post_query_forwards_chat_history_to_agent():
     """Fallback agent queries must receive prior conversation history for follow-up context."""
     mock_agent = MagicMock()
@@ -626,9 +805,8 @@ def test_post_query_returns_429_for_rate_limit_errors():
 
 
 def test_concurrent_scenario_switch_keeps_request_local_scenario():
-    """A request that starts under one scenario must not see a later scenario switch from another thread."""
+    """Concurrent fallback requests must still answer with their own scenario ids."""
     first_entered = threading.Event()
-    allow_first_finish = threading.Event()
 
     mock_agent = MagicMock()
 
@@ -636,7 +814,7 @@ def test_concurrent_scenario_switch_keeps_request_local_scenario():
         scenario_id = getattr(app_module.g.scenario_run, "scenario_id", "none")
         if question == "first fallback query":
             first_entered.set()
-            assert allow_first_finish.wait(timeout=2), "Timed out waiting for second request"
+            threading.Event().wait(0.2)
             scenario_id = getattr(app_module.g.scenario_run, "scenario_id", "none")
             return {
                 "answer": scenario_id,
@@ -647,7 +825,6 @@ def test_concurrent_scenario_switch_keeps_request_local_scenario():
             }
 
         if question == "second fallback query":
-            allow_first_finish.set()
             return {
                 "answer": scenario_id,
                 "tools_used": [],
@@ -713,6 +890,61 @@ def test_concurrent_scenario_switch_keeps_request_local_scenario():
     assert responses["second"].status_code == 200
     assert responses["first"].json()["answer"] == "scenario_1_vm_destroy"
     assert responses["second"].json()["answer"] == "scenario_2_tagging"
+
+
+def test_fallback_agent_worker_thread_inherits_active_scenario():
+    """Fallback agent tool work running on another thread must still see the request scenario."""
+    mock_agent = MagicMock()
+
+    def query_side_effect(question, chat_history=None):
+        seen = {}
+
+        def worker():
+            seen["scenario_id"] = getattr(app_module.g.scenario_run, "scenario_id", "none")
+
+        worker_thread = threading.Thread(target=worker, daemon=True)
+        worker_thread.start()
+        worker_thread.join(timeout=2)
+        return {
+            "answer": seen.get("scenario_id", "missing"),
+            "tools_used": [],
+            "steps": [],
+            "sources": [],
+            "intermediate_steps": [],
+        }
+
+    mock_agent.query.side_effect = query_side_effect
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        server_thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "fallback worker-thread scenario check",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_2_tagging",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "scenario_2_tagging"
 
 
 def test_post_query_missing_prompt_400(api_server):

@@ -19,16 +19,17 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.scenarios import ScenarioRun, build_scenario_run, SCENARIO_IDS
-from src.g import g
+from src.g import bind_shared_scenario_run, g
 
 ROOT_DIR = Path(__file__).parent.resolve()
 TEMPLATES_DIR = ROOT_DIR / "templates"
 STATIC_DIR = ROOT_DIR / "static"
 
 _AGENT_LOCK = threading.Lock()
+_AGENT_CONTEXT_LOCK = threading.Lock()
 _AGENT_INSTANCE: Any = None
 _current_scenario_run: Optional[ScenarioRun] = None
 
@@ -61,6 +62,29 @@ TEAM_LABELS = {
     "release-team": "Release Team",
     "cloudops-team": "CloudOps Team",
 }
+
+INTENT_CATEGORIES = {
+    "RESPONSIBILITY",
+    "PIPELINE_CAUSE",
+    "RESOURCES",
+    "ROOT_CAUSE",
+    "REMEDIATION",
+    "SPENDING",
+    "GENERAL",
+}
+
+INTENT_CLASSIFIER_SYSTEM_PROMPT = """You are a query classifier for a FinOps investigation system. Classify the user query into exactly one of these categories:
+
+RESPONSIBILITY - asking which team caused a cost spike or is responsible for an anomaly
+PIPELINE_CAUSE - asking which pipeline, job, deployment, or CI/CD event caused a problem
+RESOURCES - asking about specific resources, orphaned VMs, idle instances, or what is running
+ROOT_CAUSE - asking why costs increased, what the main reason is, or root cause analysis
+REMEDIATION - asking how to fix, prevent, or resolve a cost issue
+SPENDING - asking about cost amounts, budgets, spend summaries, or forecasts
+GENERAL - anything else
+
+Respond with only the category name.
+No explanation."""
 
 
 def _get_mode() -> str:
@@ -219,6 +243,129 @@ def _extract_team_from_query(prompt: str, team_filter: str = "") -> Optional[str
     return None
 
 
+def _normalize_detected_intent(raw_intent: Any) -> str:
+    normalized = str(raw_intent or "").strip().upper()
+    return normalized if normalized in INTENT_CATEGORIES else "GENERAL"
+
+
+def _fallback_classify_query_intent(question: str) -> str:
+    query_lower = question.lower()
+    remediation_keywords = (
+        "remediation",
+        "remedy",
+        "fix",
+        "resolve",
+        "recommended action",
+        "recommended remediation",
+        "how do we fix",
+        "how should",
+        "what should we do",
+        "what can we do",
+        "how to remedy",
+        "avoid",
+        "prevent",
+        "stop this from happening",
+    )
+    root_cause_keywords = (
+        "root cause",
+        "main reason",
+        "reason behind",
+        "what caused",
+        "why did this happen",
+        "why is this happening",
+        "why did this issue",
+    )
+    ownership_keywords = (
+        "owned by a team",
+        "owned by team",
+        "team owned",
+        "which team owns",
+        "owner team",
+        "ownership",
+        "unallocated",
+        "misattributed",
+        "misattribution",
+        "attributed",
+        "allocation",
+    )
+    resource_keywords = (
+        "orphaned",
+        "idle resource",
+        "idle resources",
+        "which resources",
+        "what resources",
+        "which resource",
+        "what resource",
+        "this resource",
+        "that resource",
+        "resource is",
+        "resource info",
+        "what is running",
+    )
+    spending_keywords = (
+        "budget",
+        "budgets",
+        "spend",
+        "spending",
+        "cost amount",
+        "cost amounts",
+        "summary",
+        "overview",
+        "forecast",
+        "how much",
+    )
+
+    if any(keyword in query_lower for keyword in resource_keywords):
+        return "RESOURCES"
+    if (
+        any(phrase in query_lower for phrase in ("which team", "who is responsible"))
+        and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase"))
+    ):
+        return "RESPONSIBILITY"
+    if any(keyword in query_lower for keyword in ownership_keywords) and any(
+        keyword in query_lower for keyword in ("cost", "spend", "increase", "spike")
+    ):
+        return "RESPONSIBILITY"
+    if "pipeline" in query_lower and any(keyword in query_lower for keyword in ("cause", "caused", "why", "activity", "job", "deployment")):
+        return "PIPELINE_CAUSE"
+    if any(keyword in query_lower for keyword in root_cause_keywords) or (
+        ("why" in query_lower or "cause" in query_lower)
+        and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase", "issue"))
+    ):
+        return "ROOT_CAUSE"
+    if any(keyword in query_lower for keyword in remediation_keywords) and any(
+        keyword in query_lower
+        for keyword in ("issue", "spike", "cost", "problem", "situation", "terraform", "state lock", "again")
+    ):
+        return "REMEDIATION"
+    if any(keyword in query_lower for keyword in spending_keywords):
+        return "SPENDING"
+    return "GENERAL"
+
+
+def _classify_query_intent(question: str) -> str:
+    try:
+        agent = _get_agent()
+        llm = getattr(agent, "llm", None)
+        if llm is None or not hasattr(llm, "invoke"):
+            raise RuntimeError("Classifier LLM unavailable")
+
+        with _AGENT_CONTEXT_LOCK:
+            response = llm.invoke(
+                [
+                    SystemMessage(content=INTENT_CLASSIFIER_SYSTEM_PROMPT),
+                    HumanMessage(content=question),
+                ]
+            )
+        raw_content = getattr(response, "content", "")
+        intent = _normalize_detected_intent(raw_content)
+        if intent == "GENERAL" and str(raw_content or "").strip().upper() != "GENERAL":
+            raise ValueError("Invalid classifier output")
+        return intent
+    except Exception:
+        return _fallback_classify_query_intent(question)
+
+
 def _scenario_team_data(scenario_run: ScenarioRun, team_id: str) -> Optional[dict[str, Any]]:
     return next((team for team in scenario_run.cost_data.get("teams", []) if team.get("team_id") == team_id), None)
 
@@ -275,6 +422,131 @@ def _scenario_failed_cleanup_events(scenario_run: ScenarioRun, team_id: str) -> 
                     }
                 )
     return events
+
+
+def get_primary_team(scenario_run: ScenarioRun) -> str:
+    scenario_id = scenario_run.scenario_id
+    if scenario_id == "scenario_2_tagging":
+        return "Release Team"
+    if scenario_id == "scenario_legacy_mock":
+        return "Release Team"
+
+    best_team_id = None
+    best_delta = float("-inf")
+    for team in scenario_run.cost_data.get("teams", []):
+        team_id = team.get("team_id")
+        if not team_id:
+            continue
+        delta = _scenario_team_spike_stats(scenario_run, team_id)["delta"]
+        if delta > best_delta:
+            best_delta = delta
+            best_team_id = team_id
+    return _team_label(best_team_id or "ci-team")
+
+
+def get_anomaly_summary(scenario_run: ScenarioRun) -> str:
+    scenario_id = scenario_run.scenario_id
+    if scenario_id == "scenario_1_vm_destroy":
+        stats = _scenario_team_spike_stats(scenario_run, "ci-team")
+        return (
+            f"CI Team daily spend jumps from {_format_currency(stats['baseline_avg'])} to "
+            f"{_format_currency(stats['recent_avg'])} after January 10, 2025."
+        )
+    if scenario_id == "scenario_2_tagging":
+        unallocated = scenario_run.cost_data.get("unallocated_cost", [])
+        baseline = [float(day.get("total", 0)) for day in unallocated[:7]]
+        recent = [float(day.get("total", 0)) for day in unallocated[-7:]]
+        baseline_avg = sum(baseline) / len(baseline) if baseline else 0.0
+        recent_avg = sum(recent) / len(recent) if recent else 0.0
+        return (
+            f"Unallocated spend rises from about {_format_currency(baseline_avg)}/day to "
+            f"{_format_currency(recent_avg)}/day after January 15, 2025."
+        )
+    if scenario_id == "scenario_3_autoscaler":
+        stats = _scenario_team_spike_stats(scenario_run, "release-team")
+        return (
+            f"Release Team daily spend rises from {_format_currency(stats['baseline_avg'])} to "
+            f"{_format_currency(stats['recent_avg'])} after January 10, 2025 and stays elevated."
+        )
+    if scenario_id == "scenario_4_forgotten_poc":
+        stats = _scenario_team_spike_stats(scenario_run, "cloudops-team")
+        return (
+            f"CloudOps Team daily spend rises from {_format_currency(stats['baseline_avg'])} to "
+            f"{_format_currency(stats['recent_avg'])} after January 15, 2025."
+        )
+    if scenario_id == "scenario_5_app_misconfig":
+        stats = _scenario_team_spike_stats(scenario_run, "release-team")
+        return (
+            f"Release Team daily spend rises from {_format_currency(stats['baseline_avg'])} to "
+            f"{_format_currency(stats['recent_avg'])} after January 20, 2025."
+        )
+    return "Legacy mock budgets show Release Team with the highest synthetic spend."
+
+
+def get_pipeline_summary(scenario_run: ScenarioRun) -> str:
+    scenario_id = scenario_run.scenario_id
+    if scenario_id == "scenario_1_vm_destroy":
+        failures = _scenario_failed_cleanup_events(scenario_run, "ci-team")
+        failure_names = ", ".join(event["pipeline_name"] for event in failures) or "destroy-loadtest"
+        return f"`deploy-loadtest` created the environment; failed cleanup events followed via {failure_names}."
+    if scenario_id == "scenario_2_tagging":
+        return "`deploy-release-prod` on January 14, 2025 updated tags incorrectly (`team=legacy`)."
+    if scenario_id == "scenario_3_autoscaler":
+        return "`update-web-autoscaler` on January 9, 2025 preceded the sustained scale-out."
+    if scenario_id == "scenario_4_forgotten_poc":
+        return "`deploy-poc-analytics` stayed active, while `destroy-poc-dashboard` succeeded."
+    if scenario_id == "scenario_5_app_misconfig":
+        return "`deploy-release-api` on January 19, 2025 set `MAX_WORKERS=500`."
+    pipeline_names = [p.get("name", p.get("pipeline_id", "unknown")) for p in scenario_run.pipeline_data.get("pipelines", [])[:3]]
+    return ", ".join(f"`{name}`" for name in pipeline_names) if pipeline_names else "No scenario pipelines recorded."
+
+
+def get_resource_summary(scenario_run: ScenarioRun) -> str:
+    scenario_id = scenario_run.scenario_id
+    if scenario_id == "scenario_1_vm_destroy":
+        return "`res-loadtest-1` and `res-loadtest-2` are leftover load-test VMs."
+    if scenario_id == "scenario_2_tagging":
+        return "`res-db-prod` is tagged `team=legacy`; `res-api-1` is missing team tags."
+    if scenario_id == "scenario_3_autoscaler":
+        return "`web-frontend-asg` / `res-web-frontend` stayed scaled out; `user-service` scaled back down."
+    if scenario_id == "scenario_4_forgotten_poc":
+        return "`poc-analytics-vm-1` and `poc-analytics-db` remained active after the POC should have ended."
+    if scenario_id == "scenario_5_app_misconfig":
+        return "`release-api` / `rel-api-pods` shows the pod-count surge and retry storm."
+
+    resources = []
+    for team in scenario_run.cost_data.get("teams", []):
+        resources.extend(resource.get("resource_id", resource.get("name", "unknown")) for resource in team.get("resources", [])[:2])
+    return ", ".join(f"`{name}`" for name in resources[:4]) if resources else "No scenario resources recorded."
+
+
+def _build_scenario_context(scenario_run: Optional[ScenarioRun]) -> str:
+    if scenario_run is None or _get_mode() != "Mock":
+        return ""
+
+    return (
+        f"Active investigation scenario: {scenario_run.scenario_id}\n\n"
+        f"Known facts about this scenario:\n"
+        f"- Primary affected team: {get_primary_team(scenario_run)}\n"
+        f"- Cost anomaly detected: {get_anomaly_summary(scenario_run)}\n"
+        f"- Key pipeline events: {get_pipeline_summary(scenario_run)}\n"
+        f"- Affected resources: {get_resource_summary(scenario_run)}\n\n"
+        "Use these facts as the ground truth for your investigation. "
+        "Your tools will return data consistent with this scenario."
+    )
+
+
+def _invoke_agent_query(agent: Any, question: str, chat_history: Optional[list[Any]], scenario_context: str) -> dict[str, Any]:
+    try:
+        return agent.query(
+            question,
+            chat_history=chat_history or None,
+            scenario_context=scenario_context or None,
+        )
+    except TypeError as exc:
+        if "scenario_context" not in str(exc):
+            raise
+        return agent.query(question, chat_history=chat_history or None)
 
 
 def _mock_step(number: int, tool: str, query: str, result_preview: str, sources: list[str]) -> dict[str, Any]:
@@ -656,70 +928,26 @@ def _deserialize_chat_history(raw_history: Any) -> list[Any]:
     return chat_history
 
 
-def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run: Optional[ScenarioRun]) -> Optional[dict[str, Any]]:
+def _try_handle_mock_scenario_query(
+    prompt: str,
+    team_filter: str,
+    scenario_run: Optional[ScenarioRun],
+    detected_intent: str,
+) -> Optional[dict[str, Any]]:
     if scenario_run is None:
         return None
 
-    query_lower = prompt.lower()
     team_id = _extract_team_from_query(prompt, team_filter)
-    remediation_keywords = (
-        "remediation",
-        "remedy",
-        "fix",
-        "resolve",
-        "recommended action",
-        "recommended remediation",
-        "how do we fix",
-        "how should",
-        "what should we do",
-        "what can we do",
-        "how to remedy",
-        "avoid",
-        "prevent",
-        "stop this from happening",
-    )
-    root_cause_keywords = ("root cause", "main reason", "reason behind", "what caused", "why did this happen", "why is this happening", "why did this issue")
-    ownership_keywords = (
-        "owned by a team",
-        "owned by team",
-        "team owned",
-        "which team owns",
-        "owner team",
-        "ownership",
-        "unallocated",
-        "misattributed",
-        "misattribution",
-        "attributed",
-        "allocation",
-    )
 
-    if any(keyword in query_lower for keyword in ("orphaned", "idle resource", "idle resources", "which resources", "what resources")):
-        return _build_mock_resource_result(scenario_run, team_id)
-
-    if (
-        any(phrase in query_lower for phrase in ("which team", "who is responsible"))
-        and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase"))
-    ):
+    if detected_intent == "RESPONSIBILITY":
         return _build_mock_responsibility_result(scenario_run)
-
-    if any(keyword in query_lower for keyword in ownership_keywords) and any(
-        keyword in query_lower for keyword in ("cost", "spend", "increase", "spike")
-    ):
-        return _build_mock_responsibility_result(scenario_run)
-
-    if "pipeline" in query_lower and any(keyword in query_lower for keyword in ("cause", "caused", "why", "activity")):
+    if detected_intent == "PIPELINE_CAUSE":
         return _build_mock_pipeline_result(scenario_run, team_id)
-
-    if any(keyword in query_lower for keyword in root_cause_keywords) or (
-        ("why" in query_lower or "cause" in query_lower)
-        and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase", "issue"))
-    ):
+    if detected_intent == "RESOURCES":
+        return _build_mock_resource_result(scenario_run, team_id)
+    if detected_intent == "ROOT_CAUSE":
         return _build_mock_root_cause_result(scenario_run, team_id)
-
-    if any(keyword in query_lower for keyword in remediation_keywords) and any(
-        keyword in query_lower
-        for keyword in ("issue", "spike", "cost", "problem", "situation", "terraform", "state lock", "again")
-    ):
+    if detected_intent == "REMEDIATION":
         return _build_mock_remediation_result(scenario_run, team_id)
 
     return None
@@ -800,6 +1028,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             team_filter = str(payload.get("team_filter", "All Teams"))
             scenario_id = str(payload.get("scenario_id", "")).strip()
             chat_history = _deserialize_chat_history(payload.get("chat_history"))
+            detected_intent = "GENERAL"
             
             if _get_mode() == "Mock":
                 if scenario_id and scenario_id in SCENARIO_IDS:
@@ -822,7 +1051,8 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             try:
                 direct_result = None
                 if _get_mode() == "Mock":
-                    direct_result = _try_handle_mock_scenario_query(prompt, team_filter, _current_scenario_run)
+                    detected_intent = _classify_query_intent(prompt)
+                    direct_result = _try_handle_mock_scenario_query(prompt, team_filter, _current_scenario_run, detected_intent)
 
                 if direct_result is not None:
                     self._send_json(
@@ -833,12 +1063,21 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                             "tools_used": direct_result.get("tools_used", []),
                             "steps": direct_result.get("steps", []),
                             "sources": direct_result.get("sources", []),
+                            "detected_intent": detected_intent,
                         },
                     )
                     return
 
                 agent = _get_agent()
-                result = agent.query(full_query, chat_history=chat_history or None)
+                scenario_context = _build_scenario_context(_current_scenario_run) if _get_mode() == "Mock" else ""
+                with _AGENT_CONTEXT_LOCK:
+                    with bind_shared_scenario_run(g.scenario_run):
+                        result = _invoke_agent_query(
+                            agent,
+                            full_query,
+                            chat_history=chat_history or None,
+                            scenario_context=scenario_context,
+                        )
                 steps = _serialize_steps(result.get("intermediate_steps", []))
                 source_set = []
                 seen_sources = set()
@@ -859,6 +1098,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                         "tools_used": result.get("tools_used", []),
                         "steps": steps,
                         "sources": source_set,
+                        "detected_intent": detected_intent,
                     },
                 )
             except Exception as exc:
