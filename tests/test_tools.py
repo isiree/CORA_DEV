@@ -153,6 +153,17 @@ def test_cost_tool_top_level_returns_string(scenario_1_run):
     assert len(result) > 0
 
 
+def test_cost_tool_all_teams_summary_without_scenario_returns_error_string():
+    """Top-level all-teams summary must fail cleanly when no scenario is selected."""
+    from src.tools.cost_api_tool import cost_api_tool
+
+    clear_scenario()
+    result = cost_api_tool.invoke("all teams summary")
+    assert isinstance(result, str)
+    assert "scenario" in result.lower()
+    assert "teams" not in result.strip().lower()
+
+
 def test_cost_tool_is_live_mode_false_in_mock_env():
     """CostAPITool.is_live_mode() must return False in mock mode."""
     from src.tools.cost_api_tool import CostAPITool

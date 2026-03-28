@@ -290,6 +290,8 @@ def cost_api_tool(query: str) -> str:
     # All teams summary
     if "all team" in query_lower or "summary" in query_lower or "overview" in query_lower:
         result = tool_instance.get_all_teams_summary()
+        if not result.get("success"):
+            return result.get("error", "Failed to retrieve team cost summary.")
         
         output = [f"📊 ALL TEAMS COST SUMMARY ({data_source} {mode_indicator})", "=" * 40]
         for team_data in result["teams"]:
