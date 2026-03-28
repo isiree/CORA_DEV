@@ -7,7 +7,7 @@ the full request/response cycle.
 
 import json
 import threading
-from http.server import HTTPServer
+from http.server import HTTPServer, ThreadingHTTPServer
 from http.client import HTTPConnection
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
@@ -371,6 +371,45 @@ def test_post_query_scenario_1_remediation_question_is_deterministic():
     assert "state lock" in body["answer"].lower() or "force-unlock" in body["answer"].lower()
 
 
+def test_post_query_scenario_1_remedy_situation_question_is_deterministic():
+    """Natural phrasing like 'how to remedy this situation' must stay on the deterministic mock path."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "how to remedy this situation",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "destroy-loadtest" in body["answer"]
+    assert "res-loadtest" in body["answer"]
+
+
 def test_post_query_scenario_1_root_cause_question_is_deterministic():
     """Scenario 1 root-cause follow-ups must not drop to generic budget guidance."""
     mock_agent = MagicMock()
@@ -409,6 +448,87 @@ def test_post_query_scenario_1_root_cause_question_is_deterministic():
     assert "destroy-loadtest" in body["answer"]
     assert "state lock" in body["answer"].lower()
     assert "$1,850" not in body["answer"]
+
+
+def test_post_query_scenario_1_prevention_question_is_deterministic():
+    """Prevention follow-ups about avoiding Terraform state-lock issues must stay deterministic."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "what can we do in the ci team to avoid a state lock issue in terraform again",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "state lock" in body["answer"].lower() or "force-unlock" in body["answer"].lower()
+    assert "destroy-loadtest" in body["answer"]
+
+
+def test_post_query_scenario_2_ownership_question_is_deterministic():
+    """Ownership/misattribution wording in Scenario 2 must stay on the deterministic mock path."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "is the cost increase owned by a team or is it unallocated/misattributed?",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_2_tagging",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "Release Team" in body["answer"]
+    assert "unallocated" in body["answer"].lower()
+    assert "deploy-release-prod" in body["answer"]
+    assert "$2,650" not in body["answer"]
+    assert "10.4%" not in body["answer"]
 
 
 def test_post_query_forwards_chat_history_to_agent():
@@ -465,6 +585,134 @@ def test_post_query_forwards_chat_history_to_agent():
     assert history[0].content == "Which resources look orphaned or idle for the CI Team?"
     assert isinstance(history[1], AIMessage)
     assert history[1].content == "The CI Team's most suspicious resources are res-loadtest-1 and res-loadtest-2."
+
+
+def test_post_query_returns_429_for_rate_limit_errors():
+    """Provider/model rate-limit errors should surface as a clean 429 instead of a generic 500."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = Exception("Error code: 429 - {'type': 'rate_limit_exceeded'}")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "Summarize this for leadership.",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 429
+    assert "rate limit" in body["error"].lower()
+
+
+def test_concurrent_scenario_switch_keeps_request_local_scenario():
+    """A request that starts under one scenario must not see a later scenario switch from another thread."""
+    first_entered = threading.Event()
+    allow_first_finish = threading.Event()
+
+    mock_agent = MagicMock()
+
+    def query_side_effect(question, chat_history=None):
+        scenario_id = getattr(app_module.g.scenario_run, "scenario_id", "none")
+        if question == "first fallback query":
+            first_entered.set()
+            assert allow_first_finish.wait(timeout=2), "Timed out waiting for second request"
+            scenario_id = getattr(app_module.g.scenario_run, "scenario_id", "none")
+            return {
+                "answer": scenario_id,
+                "tools_used": [],
+                "steps": [],
+                "sources": [],
+                "intermediate_steps": [],
+            }
+
+        if question == "second fallback query":
+            allow_first_finish.set()
+            return {
+                "answer": scenario_id,
+                "tools_used": [],
+                "steps": [],
+                "sources": [],
+                "intermediate_steps": [],
+            }
+
+        raise AssertionError(f"Unexpected prompt: {question}")
+
+    mock_agent.query.side_effect = query_side_effect
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    responses = {}
+
+    def run_request(label, scenario_id, prompt):
+        responses[label] = _request(
+            base_url,
+            "POST",
+            "/api/query",
+            {
+                "prompt": prompt,
+                "team_filter": "All Teams",
+                "scenario_id": scenario_id,
+            },
+        )
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        server_thread.start()
+        try:
+            first_thread = threading.Thread(
+                target=run_request,
+                args=("first", "scenario_1_vm_destroy", "first fallback query"),
+                daemon=True,
+            )
+            second_thread = threading.Thread(
+                target=run_request,
+                args=("second", "scenario_2_tagging", "second fallback query"),
+                daemon=True,
+            )
+
+            first_thread.start()
+            assert first_entered.wait(timeout=2), "First request never reached the agent"
+            second_thread.start()
+
+            first_thread.join(timeout=3)
+            second_thread.join(timeout=3)
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    assert responses["first"].status_code == 200
+    assert responses["second"].status_code == 200
+    assert responses["first"].json()["answer"] == "scenario_1_vm_destroy"
+    assert responses["second"].json()["answer"] == "scenario_2_tagging"
 
 
 def test_post_query_missing_prompt_400(api_server):

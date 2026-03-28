@@ -114,6 +114,9 @@ def _build_scenario_1_vm_destroy() -> ScenarioRun:
     ci_team["resources"].append({
         "resource_id": "res-loadtest-1", "name": "vm-loadtest-1", "type": "vm", "tags": {"team": "ci-team", "env": "loadtest"}, "region": "eastus", "sku": "Standard", "daily_cost": [{"date": "2025-01-10", "cost": 200.0}], "created_at": "2025-01-09T10:00:00Z"
     })
+    ci_team["resources"].append({
+        "resource_id": "res-loadtest-2", "name": "vm-loadtest-2", "type": "vm", "tags": {"team": "ci-team", "env": "loadtest"}, "region": "eastus", "sku": "Standard", "daily_cost": [{"date": "2025-01-11", "cost": 195.0}], "created_at": "2025-01-09T10:00:00Z"
+    })
             
     return ScenarioRun("scenario_1_vm_destroy", cost, pipes)
 

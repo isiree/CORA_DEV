@@ -110,6 +110,7 @@ def is_gitlab_live_mode() -> bool:
 
 
 _cost_provider_instance = None
+_pipeline_provider_instance = None
 
 def get_cost_provider():
     """
@@ -158,6 +159,25 @@ def get_pipeline_provider():
         GitLabPipelineProvider if live mode enabled and configured,
         MockPipelineDataProvider otherwise.
     """
-    if is_gitlab_live_mode():
-        return GitLabPipelineProvider()
-    return MockPipelineDataProvider()
+    global _pipeline_provider_instance
+
+    if _pipeline_provider_instance is not None:
+        return _pipeline_provider_instance
+
+    if not is_gitlab_live_mode():
+        _pipeline_provider_instance = MockPipelineDataProvider()
+        return _pipeline_provider_instance
+
+    try:
+        provider = GitLabPipelineProvider()
+        if provider.is_available():
+            logger.info("✅ Using LIVE GitLab Pipeline API")
+            _pipeline_provider_instance = provider
+        else:
+            logger.warning("⚠️ GitLab provider not available, falling back to mock")
+            _pipeline_provider_instance = MockPipelineDataProvider()
+    except Exception as e:
+        logger.warning(f"⚠️ GitLab provider error: {e}, falling back to mock")
+        _pipeline_provider_instance = MockPipelineDataProvider()
+
+    return _pipeline_provider_instance

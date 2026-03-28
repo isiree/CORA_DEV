@@ -434,37 +434,31 @@ def _build_mock_pipeline_result(scenario_run: ScenarioRun, team_id: Optional[str
 
 
 def _build_mock_resource_result(scenario_run: ScenarioRun, team_id: Optional[str]) -> dict[str, Any]:
-    from src.providers.mock_cost_provider import MockCostDataProvider
-
     scenario_id = scenario_run.scenario_id
     team_id = team_id or "ci-team"
-    provider = MockCostDataProvider()
     source_cost = [f"{scenario_id} mock resource data"]
 
     if scenario_id == "scenario_1_vm_destroy" and team_id == "ci-team":
-        resource_result = provider.get_team_resources("ci-team")
-        orphaned = resource_result.get("orphaned_resources", [])
-        idle = resource_result.get("idle_resources", [])
+        ci_team = _scenario_team_data(scenario_run, "ci-team") or {}
+        resources = ci_team.get("resources", [])
+        loadtest_resources = [r for r in resources if "loadtest" in str(r.get("resource_id", "")).lower()]
         orphaned_line = ""
-        if orphaned:
-            top = orphaned[0]
+        if loadtest_resources:
+            top = loadtest_resources[0]
             orphaned_line = (
-                f"`{top['resource_id']}` is explicitly orphaned: {top['resource_type']}, "
-                f"{top['days_idle']} idle days, about {_format_currency(top['monthly_cost'])}/month, "
-                f"reason: {top['reason_orphaned']}"
+                f"`{top.get('resource_id', 'unknown')}` is explicitly orphaned: {top.get('type', 'resource')}, "
+                "left running after repeated destroy failures due to Terraform state lock."
             )
         idle_line = ""
-        if len(idle) > 1:
-            next_idle = idle[1]
+        if len(loadtest_resources) > 1:
+            next_idle = loadtest_resources[1]
             idle_line = (
-                f" `{next_idle['resource_id']}` also looks idle: {next_idle['resource_type']}, "
-                f"{next_idle['days_idle']} idle days, about {_format_currency(next_idle['monthly_cost'])}/month."
+                f" `{next_idle.get('resource_id', 'unknown')}` also looks idle: {next_idle.get('type', 'resource')}, "
+                "created for the same load-test environment and never cleaned up."
             )
-        util = resource_result.get("resource_utilization", {})
         answer = (
             f"The CI Team's most suspicious resources are the leftover load-test VMs. {orphaned_line}{idle_line} "
-            f"Scenario utilization is also very low at {util.get('average_cpu_percent', 0)}% CPU and "
-            f"{util.get('average_memory_percent', 0)}% memory, which supports the orphaned/idle diagnosis."
+            "Those resources are tied to the failed `destroy-loadtest` cleanup path, which supports the orphaned/idle diagnosis."
         )
         steps = [_mock_step(1, "cost_api_tool", "ci-team resource discovery", "res-loadtest-1 and res-loadtest-2 stand out as idle/orphaned load-test VMs.", source_cost)]
         return _mock_query_result(answer, ["cost_api_tool"], source_cost, steps)
@@ -668,8 +662,36 @@ def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run:
 
     query_lower = prompt.lower()
     team_id = _extract_team_from_query(prompt, team_filter)
-    remediation_keywords = ("remediation", "fix", "resolve", "recommended action", "recommended remediation", "how do we fix", "how should", "what should we do")
+    remediation_keywords = (
+        "remediation",
+        "remedy",
+        "fix",
+        "resolve",
+        "recommended action",
+        "recommended remediation",
+        "how do we fix",
+        "how should",
+        "what should we do",
+        "what can we do",
+        "how to remedy",
+        "avoid",
+        "prevent",
+        "stop this from happening",
+    )
     root_cause_keywords = ("root cause", "main reason", "reason behind", "what caused", "why did this happen", "why is this happening", "why did this issue")
+    ownership_keywords = (
+        "owned by a team",
+        "owned by team",
+        "team owned",
+        "which team owns",
+        "owner team",
+        "ownership",
+        "unallocated",
+        "misattributed",
+        "misattribution",
+        "attributed",
+        "allocation",
+    )
 
     if any(keyword in query_lower for keyword in ("orphaned", "idle resource", "idle resources", "which resources", "what resources")):
         return _build_mock_resource_result(scenario_run, team_id)
@@ -677,6 +699,11 @@ def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run:
     if (
         any(phrase in query_lower for phrase in ("which team", "who is responsible"))
         and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase"))
+    ):
+        return _build_mock_responsibility_result(scenario_run)
+
+    if any(keyword in query_lower for keyword in ownership_keywords) and any(
+        keyword in query_lower for keyword in ("cost", "spend", "increase", "spike")
     ):
         return _build_mock_responsibility_result(scenario_run)
 
@@ -690,7 +717,8 @@ def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run:
         return _build_mock_root_cause_result(scenario_run, team_id)
 
     if any(keyword in query_lower for keyword in remediation_keywords) and any(
-        keyword in query_lower for keyword in ("issue", "spike", "cost", "problem")
+        keyword in query_lower
+        for keyword in ("issue", "spike", "cost", "problem", "situation", "terraform", "state lock", "again")
     ):
         return _build_mock_remediation_result(scenario_run, team_id)
 
@@ -834,7 +862,20 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                     },
                 )
             except Exception as exc:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"Investigation failed: {exc}"})
+                error_text = str(exc)
+                lowered = error_text.lower()
+                if "rate_limit" in lowered or "rate limit" in lowered or "429" in lowered:
+                    self._send_json(
+                        HTTPStatus.TOO_MANY_REQUESTS,
+                        {
+                            "error": (
+                                "Investigation failed: the LLM provider rate limit was reached. "
+                                "Please retry shortly or reduce fallback-agent usage in mock mode."
+                            )
+                        },
+                    )
+                else:
+                    self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"Investigation failed: {exc}"})
             return
 
         if route == "/api/reindex":

@@ -271,7 +271,7 @@ Provide analysis focused on cost impact:""")
         """
         normalized_name = self._normalize_team_name(team_name)
         scenario_run = getattr(g, 'scenario_run', None)
-        
+
         if scenario_run is not None and getattr(scenario_run, 'pipeline_data', None):
             # Extract from scenario
             pipes = scenario_run.pipeline_data.get("pipelines", [])
@@ -298,29 +298,10 @@ Provide analysis focused on cost impact:""")
                 "recent_pipelines": team_pipes[:5],
                 "infrastructure_changes": []  # Scenarios represent changes directly in pipes for simplicity
             }
-        
-        if normalized_name not in MOCK_PIPELINE_DATA:
-            return {
-                "success": False,
-                "error": f"Team '{team_name}' not found. Available teams: Release Team, CI Team, CloudOps Team"
-            }
-        
-        data = MOCK_PIPELINE_DATA[normalized_name]
-        
+
         return {
-            "success": True,
-            "team": data["team"],
-            "project": data["project"],
-            "period": f"Last {days} days",
-            "retrieved_at": datetime.now().isoformat(),
-            "statistics": {
-                "total_deployments": data["deployment_count_7_days"],
-                "failed_deployments": data["failed_deployments_7_days"],
-                "rollbacks": data["rollbacks_7_days"],
-                "success_rate": f"{((data['deployment_count_7_days'] - data['failed_deployments_7_days']) / max(data['deployment_count_7_days'], 1)) * 100:.1f}%"
-            },
-            "recent_pipelines": data["recent_pipelines"][:5],
-            "infrastructure_changes": data["infrastructure_changes"]
+            "success": False,
+            "error": "Mock scenario not selected. Select one of the numbered scenarios before querying mock pipeline data.",
         }
     
     def get_deployment_history(self, team_name: str, days: int = 7) -> dict:

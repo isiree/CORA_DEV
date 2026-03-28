@@ -222,7 +222,7 @@ def test_error_messages_no_gitlab_mention_in_mock_mode(mock_groq):
 
 
 def test_no_crash_when_scenario_run_is_none_cost_tool():
-    """CostAPITool must not crash when g.scenario_run is None — this is the state before any scenario is selected in the UI."""
+    """CostAPITool must fail cleanly when g.scenario_run is None — no implicit legacy fallback."""
     pytest.importorskip("azure")
 
     clear_scenario()
@@ -232,10 +232,12 @@ def test_no_crash_when_scenario_run_is_none_cost_tool():
     tool = CostAPITool()
     result = tool.get_team_spending("ci-team")
     assert isinstance(result, dict)
+    assert result.get("success") is False
+    assert "scenario" in result.get("error", "").lower()
 
 
 def test_no_crash_when_scenario_run_is_none_pipeline_tool(mock_groq):
-    """PipelineTool must not crash when g.scenario_run is None — graceful fallback to static mock data required."""
+    """PipelineTool must fail cleanly when g.scenario_run is None — no implicit legacy fallback."""
     pytest.importorskip("azure")
 
     clear_scenario()
@@ -245,6 +247,8 @@ def test_no_crash_when_scenario_run_is_none_pipeline_tool(mock_groq):
     tool = PipelineTool()
     result = tool.get_deployment_history("ci-team")
     assert isinstance(result, dict)
+    assert result.get("success") is False
+    assert "scenario" in result.get("error", "").lower()
 
 
 def test_pipeline_result_tagged_as_mock(scenario_1_run, mock_groq):
@@ -275,3 +279,4 @@ def test_scenario_context_reaches_cost_tool(scenario_1_run):
     set_scenario(None)
     result2 = tool.get_team_spending("ci-team")
     assert isinstance(result2, dict)
+    assert result2.get("success") is False
