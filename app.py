@@ -32,6 +32,7 @@ _AGENT_LOCK = threading.Lock()
 _AGENT_CONTEXT_LOCK = threading.Lock()
 _AGENT_INSTANCE: Any = None
 _current_scenario_run: Optional[ScenarioRun] = None
+_conversation_history: list[dict[str, str]] = []
 
 TEAM_OPTIONS = ["All Teams", "ci-team", "release-team", "cloudops-team"]
 EXAMPLE_QUERIES = [
@@ -86,6 +87,32 @@ GENERAL - anything else
 Respond with only the category name.
 No explanation."""
 
+FOLLOWUP_SIGNALS = [
+    " too",
+    " also",
+    " as well",
+    "what about",
+    "and what",
+    "additionally",
+    "same for",
+    "how about",
+    "what else",
+    "any other",
+    "in addition",
+    "besides",
+    "furthermore",
+    "compared to",
+    "versus",
+    "vs ",
+    "differ",
+    "elaborate",
+    "more detail",
+    "explain more",
+    "tell me more",
+    "expand on",
+    "dig into",
+]
+
 
 def _get_mode() -> str:
     return "Live" if os.getenv("USE_LIVE_DATA", "false").lower() == "true" else "Mock"
@@ -128,6 +155,7 @@ def _reset_agent() -> None:
 
 
 def _set_mode(new_mode: str) -> str:
+    global _conversation_history
     normalized = "Live" if str(new_mode).lower() == "live" else "Mock"
     os.environ["USE_LIVE_DATA"] = "true" if normalized == "Live" else "false"
     _reset_runtime_state()
@@ -135,6 +163,7 @@ def _set_mode(new_mode: str) -> str:
     # Reset scenario on mode change
     global _current_scenario_run
     _current_scenario_run = None
+    _conversation_history = []
     return normalized
 
 
@@ -241,6 +270,41 @@ def _extract_team_from_query(prompt: str, team_filter: str = "") -> Optional[str
         if any(variant in prompt_lower for variant in variants):
             return team_id
     return None
+
+
+def _reset_conversation_history() -> None:
+    global _conversation_history
+    _conversation_history = []
+
+
+def _append_conversation_turn(role: str, content: str) -> None:
+    global _conversation_history
+    text = str(content).strip()
+    if not text:
+        return
+    _conversation_history.append({"role": role, "content": text})
+    _conversation_history = _conversation_history[-10:]
+
+
+def _set_conversation_history(raw_history: Any) -> None:
+    global _conversation_history
+    if not isinstance(raw_history, list):
+        return
+
+    normalized: list[dict[str, str]] = []
+    for item in raw_history[-10:]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role", "")).strip().lower()
+        content = str(item.get("content", "")).strip()
+        if role in {"user", "assistant"} and content:
+            normalized.append({"role": role, "content": content})
+    _conversation_history = normalized[-10:]
+
+
+def is_followup_question(question: str) -> bool:
+    q_lower = question.lower()
+    return any(signal in q_lower for signal in FOLLOWUP_SIGNALS)
 
 
 def _normalize_detected_intent(raw_intent: Any) -> str:
@@ -1019,6 +1083,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             
             _current_scenario_run = build_scenario_run(scenario_id)
             _reset_runtime_state()
+            _reset_conversation_history()
             self._send_json(HTTPStatus.OK, {"status": "ok", "scenario_id": scenario_id})
             return
 
@@ -1027,7 +1092,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             prompt = str(payload.get("prompt", "")).strip()
             team_filter = str(payload.get("team_filter", "All Teams"))
             scenario_id = str(payload.get("scenario_id", "")).strip()
-            chat_history = _deserialize_chat_history(payload.get("chat_history"))
+            raw_chat_history = payload.get("chat_history")
             detected_intent = "GENERAL"
             
             if _get_mode() == "Mock":
@@ -1047,14 +1112,23 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                 return
 
             full_query = f"For {team_filter}: {prompt}" if team_filter != "All Teams" else prompt
+            if isinstance(raw_chat_history, list) and len(raw_chat_history) == 0 and _conversation_history:
+                _reset_conversation_history()
+            elif isinstance(raw_chat_history, list) and raw_chat_history:
+                _set_conversation_history(raw_chat_history)
+
+            server_chat_history = _deserialize_chat_history(_conversation_history)
+            _append_conversation_turn("user", full_query)
+            followup_question = is_followup_question(prompt)
 
             try:
                 direct_result = None
-                if _get_mode() == "Mock":
+                if _get_mode() == "Mock" and not followup_question:
                     detected_intent = _classify_query_intent(prompt)
                     direct_result = _try_handle_mock_scenario_query(prompt, team_filter, _current_scenario_run, detected_intent)
 
                 if direct_result is not None:
+                    _append_conversation_turn("assistant", direct_result.get("answer", ""))
                     self._send_json(
                         HTTPStatus.OK,
                         {
@@ -1075,9 +1149,10 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                         result = _invoke_agent_query(
                             agent,
                             full_query,
-                            chat_history=chat_history or None,
+                            chat_history=server_chat_history or None,
                             scenario_context=scenario_context,
                         )
+                _append_conversation_turn("assistant", result.get("answer", ""))
                 steps = _serialize_steps(result.get("intermediate_steps", []))
                 source_set = []
                 seen_sources = set()
