@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/imrag/evals/dataset/schema.json",
+  "title": "IMRAG Mock Scenario Evaluation Dataset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dataset_id",
+    "version",
+    "description",
+    "cases"
+  ],
+  "properties": {
+    "dataset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/test_case"
+      }
+    }
+  },
+  "$defs": {
+    "tool_name": {
+      "type": "string",
+      "enum": [
+        "historical_tool",
+        "cost_api_tool",
+        "pipeline_tool"
+      ]
+    },
+    "test_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_id",
+        "scenario_id",
+        "user_query",
+        "expected_root_cause_label",
+        "expected_team",
+        "expected_service",
+        "reference_answer",
+        "expected_tool_trajectory",
+        "notes"
+      ],
+      "properties": {
+        "test_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scenario_id": {
+          "type": "string",
+          "enum": [
+            "scenario_1_vm_destroy",
+            "scenario_2_tagging",
+            "scenario_3_autoscaler",
+            "scenario_4_forgotten_poc",
+            "scenario_5_app_misconfig"
+          ]
+        },
+        "user_query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_root_cause_label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical label used for grading. Use MANUAL_REVIEW_REQUIRED if not finalized."
+        },
+        "expected_team": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expected owning or responsible team id. Use MANUAL_REVIEW_REQUIRED if unknown."
+        },
+        "expected_service": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expected affected service, workload, or service-like control-plane concept."
+        },
+        "reference_answer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_tool_trajectory": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/tool_name"
+          },
+          "description": "Expected tool order for the canonical answer path."
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
