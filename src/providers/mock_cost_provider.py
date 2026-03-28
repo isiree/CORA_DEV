@@ -218,6 +218,15 @@ class MockCostDataProvider(CostDataProvider):
     def _get_team_profile(self, team_id: str) -> Dict[str, Any]:
         return self.data.get(team_id, {})
 
+    def _require_scenario_run(self) -> Optional[Any]:
+        return getattr(g, "scenario_run", None)
+
+    def _missing_scenario_error(self) -> dict:
+        return {
+            "success": False,
+            "error": "Mock scenario not selected. Select one of the numbered scenarios before querying mock data.",
+        }
+
     def _get_team_display_name(self, team_id: str) -> str:
         profile = self._get_team_profile(team_id)
         if profile.get("team_name"):
@@ -269,87 +278,61 @@ class MockCostDataProvider(CostDataProvider):
         }
 
     def _build_resource_profiles(self, scenario_run: Optional[Any]) -> Dict[str, Dict[str, Any]]:
-        profiles = copy.deepcopy(RESOURCE_DISCOVERY_BASE)
         if scenario_run is None:
-            return profiles
+            return {}
 
-        scenario_id = getattr(scenario_run, "scenario_id", "")
+        profiles: Dict[str, Dict[str, Any]] = {}
+        for team_data in scenario_run.cost_data.get("teams", []):
+            team_id = team_data.get("team_id", "")
+            profile = self._get_team_profile(team_id)
+            resources = team_data.get("resources", [])
 
-        if scenario_id == "scenario_1_vm_destroy":
-            profiles["ci-team"]["idle_resources"] = [
-                {
-                    "resource_id": "res-loadtest-1",
-                    "resource_type": "vm",
-                    "team": "ci-team",
-                    "monthly_cost": 620.0,
-                    "days_idle": 12,
-                    "region": "eastus",
-                },
-                {
-                    "resource_id": "res-loadtest-2",
-                    "resource_type": "vm",
-                    "team": "ci-team",
-                    "monthly_cost": 610.0,
-                    "days_idle": 11,
-                    "region": "eastus",
-                },
-            ]
-            profiles["ci-team"]["orphaned_resources"] = [
-                {
-                    "resource_id": "res-loadtest-1",
-                    "resource_type": "vm",
-                    "team": "ci-team",
-                    "monthly_cost": 620.0,
-                    "days_idle": 12,
-                    "region": "eastus",
-                    "reason_orphaned": "Terraform destroy failed repeatedly due to state lock, VM left running.",
+            storage_accounts = []
+            container_instances = []
+            for resource in resources:
+                normalized_type = str(resource.get("type", "")).lower()
+                entry = {
+                    "name": resource.get("name", resource.get("resource_id", "unknown")),
+                    "location": resource.get("region", "unknown"),
+                    "tags": resource.get("tags", {}),
                 }
-            ]
-            profiles["ci-team"]["resource_utilization"] = {
-                "average_cpu_percent": 4.8,
-                "average_memory_percent": 9.2,
-                "underutilized_count": 4,
-            }
-        elif scenario_id == "scenario_3_autoscaler":
-            profiles["release-team"]["idle_resources"] = [
-                {
-                    "resource_id": "res-web-frontend-inst-09",
-                    "resource_type": "vmss-instance",
-                    "team": "release-team",
-                    "monthly_cost": 280.0,
-                    "days_idle": 10,
-                    "region": "eastus",
-                },
-                {
-                    "resource_id": "res-web-frontend-inst-10",
-                    "resource_type": "vmss-instance",
-                    "team": "release-team",
-                    "monthly_cost": 280.0,
-                    "days_idle": 10,
-                    "region": "eastus",
-                },
-            ]
-            profiles["release-team"]["orphaned_resources"] = [
-                {
-                    "resource_id": "res-web-frontend-osdisk-09",
-                    "resource_type": "managed-disk",
-                    "team": "release-team",
-                    "monthly_cost": 52.0,
-                    "days_idle": 10,
-                    "region": "eastus",
-                    "reason_orphaned": "Autoscaler never scaled down VMSS, leaving detached disk after replacement.",
-                }
-            ]
-            profiles["release-team"]["resource_utilization"] = {
-                "average_cpu_percent": 8.6,
-                "average_memory_percent": 18.4,
-                "underutilized_count": 6,
-            }
+                if "storage" in normalized_type:
+                    storage_accounts.append(entry)
+                if "container" in normalized_type:
+                    container_instances.append(entry)
 
+            profiles[team_id] = {
+                "team_name": profile.get("team_name", team_id.replace("-", " ").title()),
+                "resource_group": profile.get("resource_group", f"rg-{team_id}"),
+                "scenario_resources": resources,
+                "idle_resources": [],
+                "orphaned_resources": [],
+                "resource_utilization": {
+                    "average_cpu_percent": 0.0,
+                    "average_memory_percent": 0.0,
+                    "underutilized_count": 0,
+                },
+                "storage_accounts": storage_accounts,
+                "container_instances": container_instances,
+            }
         return profiles
 
     def _compose_resource_rows(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
+        for item in profile.get("scenario_resources", []):
+            daily_cost = item.get("daily_cost", [])
+            monthly_cost = sum(float(c.get("cost", 0)) for c in daily_cost)
+            rows.append(
+                {
+                    "name": item.get("resource_id", item.get("name", "unknown")),
+                    "type": item.get("type", "unknown"),
+                    "location": item.get("region", "unknown"),
+                    "team": item.get("tags", {}).get("team"),
+                    "monthly_cost": monthly_cost,
+                    "days_idle": 0,
+                    "status": "active",
+                }
+            )
         for item in profile["idle_resources"]:
             rows.append(
                 {
@@ -386,186 +369,117 @@ class MockCostDataProvider(CostDataProvider):
     
     def get_team_spending(self, team_name: str, days: int = 30) -> dict:
         normalized = self._normalize_team_name(team_name)
-        scenario_run = getattr(g, 'scenario_run', None)
-        
-        if scenario_run is not None:
-            # Reconstruct from scenario_run.cost_data
-            cost_data = scenario_run.cost_data
-            team_data = next((t for t in cost_data["teams"] if t["team_id"] == normalized), None)
-            if not team_data:
-                return {"success": False, "error": f"Team '{team_name}' not found."}
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
 
-            summary = self._build_scenario_cost_summary(team_data, days=days)
-            anomalies = ["Scenario active"]
-            if summary["daily_spike_delta"] > 0:
-                anomalies.append(
-                    f"Recent daily average increased by ${summary['daily_spike_delta']:.2f} versus the scenario baseline."
-                )
+        cost_data = scenario_run.cost_data
+        team_data = next((t for t in cost_data["teams"] if t["team_id"] == normalized), None)
+        if not team_data:
+            return {"success": False, "error": f"Team '{team_name}' not found."}
 
-            return {
-                "success": True,
-                "team_name": summary["team_name"],
-                "lead": summary["lead"],
-                "period": f"Last {days} days",
-                "retrieved_at": datetime.now().isoformat(),
-                "data_source": f"mock ({scenario_run.scenario_id})",
-                "budget": {
-                    "monthly_budget": f"${summary['monthly_budget']:,.0f}",
-                    "current_spend": f"${summary['current_spend']:,.2f}",
-                    "forecast_month_end": f"${summary['forecast_month_end']:,.2f}",
-                    "budget_used_percentage": f"{summary['budget_used_percentage']:.1f}%",
-                    "budget_status": summary["budget_status"]
-                },
-                "subscriptions": summary["subscriptions"],
-                "cost_breakdown": {
-                    "compute": f"${summary['compute_cost']:,.2f}",
-                    "storage": f"${summary['storage_cost']:,.2f}",
-                    "network": f"${summary['network_cost']:,.2f}"
-                },
-                "daily_trend": summary["daily_trend"],
-                "anomalies": anomalies
-            }
+        summary = self._build_scenario_cost_summary(team_data, days=days)
+        anomalies = ["Scenario active"]
+        if summary["daily_spike_delta"] > 0:
+            anomalies.append(
+                f"Recent daily average increased by ${summary['daily_spike_delta']:.2f} versus the scenario baseline."
+            )
 
-        # Fallback to legacy mock
-        if normalized not in self.data:
-            return {
-                "success": False,
-                "error": f"Team '{team_name}' not found. Available: {', '.join(self.data.keys())}"
-            }
-        
-        team = self.data[normalized]
-        budget_pct = (team["current_spend"] / team["budget_monthly"]) * 100
-        
         return {
             "success": True,
-            "team_name": team["team_name"],
-            "lead": team["lead"],
+            "team_name": summary["team_name"],
+            "lead": summary["lead"],
             "period": f"Last {days} days",
             "retrieved_at": datetime.now().isoformat(),
-            "data_source": "mock",
+            "data_source": f"mock ({scenario_run.scenario_id})",
             "budget": {
-                "monthly_budget": f"${team['budget_monthly']:,}",
-                "current_spend": f"${team['current_spend']:,}",
-                "forecast_month_end": f"${team['forecast_month_end']:,}",
-                "budget_used_percentage": f"{budget_pct:.1f}%",
-                "budget_status": self._get_budget_status(budget_pct)
+                "monthly_budget": f"${summary['monthly_budget']:,.0f}",
+                "current_spend": f"${summary['current_spend']:,.2f}",
+                "forecast_month_end": f"${summary['forecast_month_end']:,.2f}",
+                "budget_used_percentage": f"{summary['budget_used_percentage']:.1f}%",
+                "budget_status": summary["budget_status"]
             },
-            "subscriptions": team["subscriptions"],
-            "cost_breakdown": {k: f"${v:,}" for k, v in team["cost_breakdown"].items()},
-            "daily_trend": team["daily_spend_last_7_days"],
-            "anomalies": team["anomalies"] if team["anomalies"] else ["No anomalies detected"]
+            "subscriptions": summary["subscriptions"],
+            "cost_breakdown": {
+                "compute": f"${summary['compute_cost']:,.2f}",
+                "storage": f"${summary['storage_cost']:,.2f}",
+                "network": f"${summary['network_cost']:,.2f}"
+            },
+            "daily_trend": summary["daily_trend"],
+            "anomalies": anomalies
         }
     
     def get_all_teams_summary(self) -> dict:
-        scenario_run = getattr(g, 'scenario_run', None)
+        scenario_run = self._require_scenario_run()
         teams = []
         total_budget = 0
         total_spend = 0
-        
-        if scenario_run is not None:
-            # Build from scenario
-            cost_data = scenario_run.cost_data
-            primary_driver = None
-            for team_data in cost_data["teams"]:
-                summary = self._build_scenario_cost_summary(team_data)
-                total_budget += summary["monthly_budget"]
-                total_spend += summary["current_spend"]
-                teams.append({
+        if scenario_run is None:
+            return self._missing_scenario_error()
+
+        cost_data = scenario_run.cost_data
+        primary_driver = None
+        for team_data in cost_data["teams"]:
+            summary = self._build_scenario_cost_summary(team_data)
+            total_budget += summary["monthly_budget"]
+            total_spend += summary["current_spend"]
+            teams.append({
+                "team": summary["team_name"],
+                "team_id": summary["team_id"],
+                "budget": f"${summary['monthly_budget']:,.0f}",
+                "spend": f"${summary['current_spend']:,.2f}",
+                "percentage": f"{summary['budget_used_percentage']:.1f}%",
+                "status": "⚠️ OVER" if summary["budget_used_percentage"] > 100 else "✅ OK",
+                "baseline_daily_avg": summary["baseline_daily_avg"],
+                "recent_daily_avg": summary["recent_daily_avg"],
+                "daily_spike_delta": summary["daily_spike_delta"],
+            })
+
+            if (
+                primary_driver is None
+                or summary["daily_spike_delta"] > primary_driver["daily_spike_delta"]
+            ):
+                primary_driver = {
                     "team": summary["team_name"],
                     "team_id": summary["team_id"],
-                    "budget": f"${summary['monthly_budget']:,.0f}",
-                    "spend": f"${summary['current_spend']:,.2f}",
-                    "percentage": f"{summary['budget_used_percentage']:.1f}%",
-                    "status": "⚠️ OVER" if summary["budget_used_percentage"] > 100 else "✅ OK",
+                    "daily_spike_delta": summary["daily_spike_delta"],
                     "baseline_daily_avg": summary["baseline_daily_avg"],
                     "recent_daily_avg": summary["recent_daily_avg"],
-                    "daily_spike_delta": summary["daily_spike_delta"],
-                })
-
-                if (
-                    primary_driver is None
-                    or summary["daily_spike_delta"] > primary_driver["daily_spike_delta"]
-                ):
-                    primary_driver = {
-                        "team": summary["team_name"],
-                        "team_id": summary["team_id"],
-                        "daily_spike_delta": summary["daily_spike_delta"],
-                        "baseline_daily_avg": summary["baseline_daily_avg"],
-                        "recent_daily_avg": summary["recent_daily_avg"],
-                    }
-            
-            return {
-                "success": True,
-                "retrieved_at": datetime.now().isoformat(),
-                "data_source": f"mock ({scenario_run.scenario_id})",
-                "teams": teams,
-                "primary_driver": primary_driver,
-                "totals": {
-                    "total_budget": f"${total_budget:,}",
-                    "total_spend": f"${total_spend:,.2f}",
-                    "overall_percentage": f"{(total_spend/total_budget)*100:.1f}%" if total_budget else "0%"
                 }
-            }
 
-        # Legacy builder
-        for team_key, team in self.data.items():
-            budget_pct = (team["current_spend"] / team["budget_monthly"]) * 100
-            total_budget += team["budget_monthly"]
-            total_spend += team["current_spend"]
-            
-            teams.append({
-                "team": team["team_name"],
-                "budget": f"${team['budget_monthly']:,}",
-                "spend": f"${team['current_spend']:,}",
-                "percentage": f"{budget_pct:.1f}%",
-                "status": "⚠️ OVER" if budget_pct > 100 else "✅ OK"
-            })
-        
         return {
             "success": True,
             "retrieved_at": datetime.now().isoformat(),
-            "data_source": "mock",
+            "data_source": f"mock ({scenario_run.scenario_id})",
             "teams": teams,
+            "primary_driver": primary_driver,
             "totals": {
                 "total_budget": f"${total_budget:,}",
-                "total_spend": f"${total_spend:,}",
-                "overall_percentage": f"{(total_spend/total_budget)*100:.1f}%"
+                "total_spend": f"${total_spend:,.2f}",
+                "overall_percentage": f"{(total_spend/total_budget)*100:.1f}%" if total_budget else "0%"
             }
         }
     
     def get_subscription_costs(self, subscription_id: str, days: int = 7) -> dict:
-        scenario_run = getattr(g, 'scenario_run', None)
-        
-        if scenario_run is not None:
-            unalloc_sum = sum(float(c.get("total", 0)) for c in scenario_run.cost_data.get("unallocated_cost", [])[-days:])
-            return {
-                "success": True,
-                "subscription_id": subscription_id,
-                "owning_team": "Unknown" if unalloc_sum > 0 else "Multiple",
-                "period": f"Last {days} days",
-                "total_cost": f"${unalloc_sum:,.2f}",
-                "daily_average": f"${unalloc_sum/days:,.2f}",
-                "data_source": f"mock ({scenario_run.scenario_id})"
-            }
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
 
-        # Legacy
-        for team_key, team in self.data.items():
-            if subscription_id in team["subscriptions"]:
-                per_sub_cost = team["current_spend"] / len(team["subscriptions"])
-                return {
-                    "success": True,
-                    "subscription_id": subscription_id,
-                    "owning_team": team["team_name"],
-                    "period": f"Last {days} days",
-                    "total_cost": f"${per_sub_cost:.2f}",
-                    "daily_average": f"${per_sub_cost/30:.2f}",
-                    "data_source": "mock"
-                }
-        
-        return {"success": False, "error": f"Subscription '{subscription_id}' not found"}
+        unalloc_sum = sum(float(c.get("total", 0)) for c in scenario_run.cost_data.get("unallocated_cost", [])[-days:])
+        return {
+            "success": True,
+            "subscription_id": subscription_id,
+            "owning_team": "Unknown" if unalloc_sum > 0 else "Multiple",
+            "period": f"Last {days} days",
+            "total_cost": f"${unalloc_sum:,.2f}",
+            "daily_average": f"${unalloc_sum/days:,.2f}",
+            "data_source": f"mock ({scenario_run.scenario_id})"
+        }
 
     def get_team_resources(self, team_name: str) -> dict:
-        scenario_run = getattr(g, "scenario_run", None)
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
         profiles = self._build_resource_profiles(scenario_run)
         normalized = self._normalize_team_name(team_name)
 
@@ -594,7 +508,9 @@ class MockCostDataProvider(CostDataProvider):
         }
 
     def get_all_resources(self) -> dict:
-        scenario_run = getattr(g, "scenario_run", None)
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
         profiles = self._build_resource_profiles(scenario_run)
 
         by_team: Dict[str, List[Dict[str, Any]]] = {}
@@ -624,7 +540,9 @@ class MockCostDataProvider(CostDataProvider):
         }
 
     def get_storage_accounts(self, team_name: str = None) -> dict:
-        scenario_run = getattr(g, "scenario_run", None)
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
         profiles = self._build_resource_profiles(scenario_run)
 
         team_resource_health: Dict[str, Dict[str, Any]] = {}
@@ -684,7 +602,9 @@ class MockCostDataProvider(CostDataProvider):
         }
 
     def get_container_instances(self, team_name: str = None) -> dict:
-        scenario_run = getattr(g, "scenario_run", None)
+        scenario_run = self._require_scenario_run()
+        if scenario_run is None:
+            return self._missing_scenario_error()
         profiles = self._build_resource_profiles(scenario_run)
 
         team_resource_health: Dict[str, Dict[str, Any]] = {}

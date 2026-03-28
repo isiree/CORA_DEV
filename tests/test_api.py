@@ -12,6 +12,7 @@ from http.client import HTTPConnection
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
+from langchain_core.messages import AIMessage, HumanMessage
 import pytest
 
 import app as app_module
@@ -328,6 +329,142 @@ def test_post_query_scenario_1_resource_question_returns_resources():
     assert "res-loadtest-1" in body["answer"]
     assert "res-loadtest-2" in body["answer"]
     assert "orphaned" in body["answer"].lower() or "idle" in body["answer"].lower()
+
+
+def test_post_query_scenario_1_remediation_question_is_deterministic():
+    """Scenario 1 remediation follow-ups must stay on the deterministic mock path."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "what remediation is recommended to fix this issue in the ci team ?",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "destroy-loadtest" in body["answer"]
+    assert "res-loadtest" in body["answer"]
+    assert "state lock" in body["answer"].lower() or "force-unlock" in body["answer"].lower()
+
+
+def test_post_query_scenario_1_root_cause_question_is_deterministic():
+    """Scenario 1 root-cause follow-ups must not drop to generic budget guidance."""
+    mock_agent = MagicMock()
+    mock_agent.query.side_effect = AssertionError("Agent fallback should not be used for deterministic mock queries")
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "what is the main reason behind this cost spike in the ci team ?",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "destroy-loadtest" in body["answer"]
+    assert "state lock" in body["answer"].lower()
+    assert "$1,850" not in body["answer"]
+
+
+def test_post_query_forwards_chat_history_to_agent():
+    """Fallback agent queries must receive prior conversation history for follow-up context."""
+    mock_agent = MagicMock()
+    mock_agent.query.return_value = {
+        "answer": "Leadership summary.",
+        "tools_used": ["historical_tool"],
+        "steps": [],
+        "sources": [],
+        "intermediate_steps": [],
+    }
+
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    with patch.object(app_module, "_get_agent", return_value=mock_agent):
+        app_module._current_scenario_run = None
+        app_module._set_mode("Mock")
+        app_module.g.scenario_run = None
+        thread.start()
+        try:
+            response = _request(
+                base_url,
+                "POST",
+                "/api/query",
+                {
+                    "prompt": "Summarize this for leadership.",
+                    "team_filter": "All Teams",
+                    "scenario_id": "scenario_1_vm_destroy",
+                    "chat_history": [
+                        {"role": "user", "content": "Which resources look orphaned or idle for the CI Team?"},
+                        {"role": "assistant", "content": "The CI Team's most suspicious resources are res-loadtest-1 and res-loadtest-2."},
+                    ],
+                },
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            app_module._current_scenario_run = None
+            app_module.g.scenario_run = None
+
+    assert response.status_code == 200
+    mock_agent.query.assert_called_once()
+    call_args, call_kwargs = mock_agent.query.call_args
+    assert call_args[0] == "Summarize this for leadership."
+    assert "chat_history" in call_kwargs
+    history = call_kwargs["chat_history"]
+    assert len(history) == 2
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "Which resources look orphaned or idle for the CI Team?"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "The CI Team's most suspicious resources are res-loadtest-1 and res-loadtest-2."
 
 
 def test_post_query_missing_prompt_400(api_server):

@@ -145,6 +145,27 @@ def test_get_pipeline_provider_returns_mock_without_token(monkeypatch):
     assert isinstance(result, MockPipelineDataProvider)
 
 
+def test_get_pipeline_provider_falls_back_to_mock_when_gitlab_unavailable(monkeypatch):
+    """Bad live GitLab auth must fall back to mock instead of returning a broken live provider."""
+    import src.providers as providers_module
+
+    monkeypatch.setenv("USE_LIVE_DATA", "true")
+    monkeypatch.setenv("GITLAB_TOKEN", "bad-token")
+    monkeypatch.setenv("GITLAB_PROJECT_ID", "123")
+
+    gitlab_provider = MagicMock()
+    gitlab_provider.is_available.return_value = False
+    monkeypatch.setattr(
+        providers_module,
+        "GitLabPipelineProvider",
+        MagicMock(return_value=gitlab_provider),
+    )
+
+    result = get_pipeline_provider()
+
+    assert isinstance(result, MockPipelineDataProvider)
+
+
 def test_provider_cache_returns_same_instance():
     """Provider factory must cache and return the same cost provider instance."""
     provider_one = get_cost_provider()

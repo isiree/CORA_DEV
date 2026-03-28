@@ -949,6 +949,10 @@ function CoraApp() {
     if (!query.trim()) return;
 
     const formattedQuery = teamFilter ? `For ${teamFilter}: ${query.trim()}` : query.trim();
+    const chatHistory = messages.map((m) => ({
+      role: m.role,
+      content: m.content
+    }));
 
     setMessages(prev => [...prev, { role: 'user', content: formattedQuery }]);
     setLoading(true);
@@ -960,7 +964,8 @@ function CoraApp() {
         body: JSON.stringify({
           prompt: query.trim(),
           team_filter: teamFilter,
-          scenario_id: scenario
+          scenario_id: scenario,
+          chat_history: chatHistory
         })
       });
 

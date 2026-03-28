@@ -19,6 +19,7 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, HumanMessage
 
 from src.scenarios import ScenarioRun, build_scenario_run, SCENARIO_IDS
 from src.g import g
@@ -505,12 +506,170 @@ def _build_mock_resource_result(scenario_run: ScenarioRun, team_id: Optional[str
     return _mock_query_result(answer, ["cost_api_tool"], source_cost, steps)
 
 
+def _build_mock_root_cause_result(scenario_run: ScenarioRun, team_id: Optional[str]) -> dict[str, Any]:
+    scenario_id = scenario_run.scenario_id
+    source_cost = [f"{scenario_id} mock cost data"]
+    source_pipeline = [f"{scenario_id} mock pipeline data"]
+
+    if scenario_id == "scenario_1_vm_destroy":
+        stats = _scenario_team_spike_stats(scenario_run, "ci-team")
+        answer = (
+            "The main reason for the CI Team cost spike is failed cleanup of the load-test environment. "
+            "`deploy-loadtest` created the environment on January 9, 2025, but `destroy-loadtest` failed on "
+            "January 10, 11, and 12 because `terraform-destroy` hit `Error acquiring the state lock`. "
+            f"That left the load-test VMs running and pushed daily spend from {_format_currency(stats['baseline_avg'])}/day "
+            f"to {_format_currency(stats['recent_avg'])}/day."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "ci-team root cause review", "Repeated destroy-loadtest failures left the environment running.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "ci-team spend delta", "CI spend increases immediately after the failed cleanup attempts.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_2_tagging":
+        answer = (
+            "The main reason is a tagging regression, not new organic usage. `deploy-release-prod` on January 14, 2025 "
+            "updated tags incorrectly, including `team=legacy`, so Release Team spend was misattributed into the unallocated bucket."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team root cause review", "deploy-release-prod introduced incorrect team tags.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "unallocated spend trend", "Unallocated spend jumps immediately after the tagging change.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_3_autoscaler":
+        answer = (
+            "The main reason is a bad autoscaler configuration change. `update-web-autoscaler` on January 9, 2025 "
+            "was followed by `web-frontend-asg` scaling from 4 to 12 instances on January 10 with no scale-down, creating sustained excess compute cost."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team root cause review", "Autoscaler update preceded the permanent scale-out.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "release-team compute trend", "Release compute spend stays elevated after the scale-out.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_4_forgotten_poc":
+        answer = (
+            "The main reason is a forgotten proof-of-concept environment. `deploy-poc-analytics` created resources that remained active after January 14, 2025, "
+            "while the dashboard POC was actually destroyed successfully. The spike comes from abandoned analytics resources, not the decoy dashboard workflow."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "cloudops-team root cause review", "deploy-poc-analytics remained active after the POC should have ended.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "cloudops-team idle footprint", "POC analytics resources show negligible utilization but continued spend.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_5_app_misconfig":
+        answer = (
+            "The main reason is an application configuration mistake in `deploy-release-api`. The January 19, 2025 rollout set `MAX_WORKERS=500`, "
+            "which triggered a pod-count surge and retry storm. This is an app-driven scaling problem rather than an orphaned infrastructure issue."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team root cause review", "deploy-release-api changed runtime behavior and triggered excess scaling.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "release-team pod scaling review", "Release API pod count and compute spend jump after the config rollout.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    answer = f"No scenario-specific root cause summary is defined for {scenario_id}."
+    steps = [_mock_step(1, "cost_api_tool", f"{team_id or 'all-teams'} root cause review", "No scenario-specific root cause summary available.", source_cost)]
+    return _mock_query_result(answer, ["cost_api_tool"], source_cost, steps)
+
+
+def _build_mock_remediation_result(scenario_run: ScenarioRun, team_id: Optional[str]) -> dict[str, Any]:
+    scenario_id = scenario_run.scenario_id
+    team_id = team_id or "ci-team"
+    source_cost = [f"{scenario_id} mock cost data"]
+    source_pipeline = [f"{scenario_id} mock pipeline data"]
+
+    if scenario_id == "scenario_1_vm_destroy":
+        answer = (
+            "Recommended remediation for the CI Team is to clear the Terraform state lock, rerun `destroy-loadtest`, and manually decommission any leftover "
+            "`res-loadtest-*` VMs that remain. To prevent recurrence, add destroy-job retry/force-unlock handling and alert when load-test resources survive after a failed cleanup pipeline."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "ci-team remediation review", "Failed destroy-loadtest jobs point to Terraform state-lock handling as the first fix.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "ci-team leftover resource cleanup", "res-loadtest-1 and res-loadtest-2 are the immediate cost-saving cleanup targets.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_2_tagging":
+        answer = (
+            "Recommended remediation is to correct the bad team tags on the affected Release Team resources, backfill missing ownership metadata, and add tag validation in the IaC pipeline so "
+            "`team=legacy`-style regressions are blocked before deployment. A short-term ownership review should also reassign the currently unallocated spend."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team remediation review", "deploy-release-prod needs tag validation and change controls.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "unallocated spend reassignment", "Mistagged resources should be reattributed to restore accurate cost ownership.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_3_autoscaler":
+        answer = (
+            "Recommended remediation is to roll back or correct the autoscaler thresholds, force a scale-in of the excess `web-frontend-asg` instances, and add monitoring for scale-out without matching scale-down events. "
+            "That addresses both the immediate compute overrun and the detection gap."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team remediation review", "Autoscaler config should be rolled back or corrected first.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "release-team excess instance review", "Scaled-out frontend instances are the immediate savings target.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_4_forgotten_poc":
+        answer = (
+            "Recommended remediation is to shut down and delete the forgotten `poc-analytics` resources, add expiration tags and owner metadata to all POC environments, and enforce automatic cleanup or review for non-production workloads after the expected end date."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "cloudops-team remediation review", "POC lifecycle controls are missing for deploy-poc-analytics.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "cloudops-team abandoned POC cleanup", "Idle analytics resources are the immediate cleanup target.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    if scenario_id == "scenario_5_app_misconfig":
+        answer = (
+            "Recommended remediation is to revert the bad `MAX_WORKERS=500` configuration, scale the `release-api` workload back to normal pod levels, and add deployment guardrails that flag extreme worker-count changes before rollout. "
+            "Application retry behavior should also be reviewed so bad config cannot amplify compute usage this quickly."
+        )
+        steps = [
+            _mock_step(1, "pipeline_tool", "release-team remediation review", "The release-api configuration change should be rolled back immediately.", source_pipeline),
+            _mock_step(2, "cost_api_tool", "release-team pod right-sizing", "Excess release-api pods are the direct cost-remediation target.", source_cost),
+        ]
+        return _mock_query_result(answer, ["pipeline_tool", "cost_api_tool"], source_pipeline + source_cost, steps)
+
+    answer = f"No scenario-specific remediation summary is defined for {scenario_id}."
+    steps = [_mock_step(1, "cost_api_tool", f"{team_id} remediation review", "No scenario-specific remediation summary available.", source_cost)]
+    return _mock_query_result(answer, ["cost_api_tool"], source_cost, steps)
+
+
+def _deserialize_chat_history(raw_history: Any) -> list[Any]:
+    if not isinstance(raw_history, list):
+        return []
+
+    chat_history: list[Any] = []
+    for item in raw_history:
+        if not isinstance(item, dict):
+            continue
+
+        role = str(item.get("role", "")).strip().lower()
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+
+        if role == "user":
+            chat_history.append(HumanMessage(content=content))
+        elif role == "assistant":
+            chat_history.append(AIMessage(content=content))
+
+    return chat_history
+
+
 def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run: Optional[ScenarioRun]) -> Optional[dict[str, Any]]:
     if scenario_run is None:
         return None
 
     query_lower = prompt.lower()
     team_id = _extract_team_from_query(prompt, team_filter)
+    remediation_keywords = ("remediation", "fix", "resolve", "recommended action", "recommended remediation", "how do we fix", "how should", "what should we do")
+    root_cause_keywords = ("root cause", "main reason", "reason behind", "what caused", "why did this happen", "why is this happening", "why did this issue")
 
     if any(keyword in query_lower for keyword in ("orphaned", "idle resource", "idle resources", "which resources", "what resources")):
         return _build_mock_resource_result(scenario_run, team_id)
@@ -523,6 +682,17 @@ def _try_handle_mock_scenario_query(prompt: str, team_filter: str, scenario_run:
 
     if "pipeline" in query_lower and any(keyword in query_lower for keyword in ("cause", "caused", "why", "activity")):
         return _build_mock_pipeline_result(scenario_run, team_id)
+
+    if any(keyword in query_lower for keyword in root_cause_keywords) or (
+        ("why" in query_lower or "cause" in query_lower)
+        and any(keyword in query_lower for keyword in ("cost spike", "spike", "cost increase", "increase", "issue"))
+    ):
+        return _build_mock_root_cause_result(scenario_run, team_id)
+
+    if any(keyword in query_lower for keyword in remediation_keywords) and any(
+        keyword in query_lower for keyword in ("issue", "spike", "cost", "problem")
+    ):
+        return _build_mock_remediation_result(scenario_run, team_id)
 
     return None
 
@@ -601,6 +771,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             prompt = str(payload.get("prompt", "")).strip()
             team_filter = str(payload.get("team_filter", "All Teams"))
             scenario_id = str(payload.get("scenario_id", "")).strip()
+            chat_history = _deserialize_chat_history(payload.get("chat_history"))
             
             if _get_mode() == "Mock":
                 if scenario_id and scenario_id in SCENARIO_IDS:
@@ -639,7 +810,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                     return
 
                 agent = _get_agent()
-                result = agent.query(full_query)
+                result = agent.query(full_query, chat_history=chat_history or None)
                 steps = _serialize_steps(result.get("intermediate_steps", []))
                 source_set = []
                 seen_sources = set()

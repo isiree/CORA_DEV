@@ -132,13 +132,15 @@ def test_cost_tool_resources_all_teams(scenario_1_run, team):
 
 
 def test_cost_tool_no_crash_without_scenario():
-    """CostAPITool must not crash when g.scenario_run is None."""
+    """CostAPITool must return a clear error instead of legacy mock data when no scenario is selected."""
     from src.tools.cost_api_tool import CostAPITool
 
     clear_scenario()
     tool = CostAPITool()
     result = tool.get_team_spending("ci-team")
     assert isinstance(result, dict)
+    assert result.get("success") is False
+    assert "scenario" in result.get("error", "").lower()
 
 
 def test_cost_tool_top_level_returns_string(scenario_1_run):
@@ -184,7 +186,7 @@ def test_pipeline_tool_all_teams(scenario_1_run, team, mock_groq):
 
 
 def test_pipeline_tool_no_crash_without_scenario(mock_groq):
-    """PipelineTool must not crash when g.scenario_run is None."""
+    """PipelineTool must return a clear error instead of legacy mock data when no scenario is selected."""
     pytest.importorskip("langchain_groq")
     from src.tools.pipeline_tool import PipelineTool
 
@@ -192,6 +194,8 @@ def test_pipeline_tool_no_crash_without_scenario(mock_groq):
     tool = PipelineTool()
     result = tool.get_deployment_history("ci-team")
     assert isinstance(result, dict)
+    assert result.get("success") is False
+    assert "scenario" in result.get("error", "").lower()
 
 
 def test_pipeline_tool_result_is_mock(scenario_1_run, mock_groq):
@@ -276,3 +280,30 @@ def test_scenario_switch_changes_pipeline_data(mock_groq):
 
     assert result_1.get("success") is True
     assert result_3.get("success") is True
+
+
+def test_scenario_2_team_spending_uses_scenario_data_not_legacy():
+    """Scenario 2 spend queries must not leak legacy mock numbers like $2,650."""
+    from src.scenarios import _build_scenario_2_tagging
+    from src.tools.cost_api_tool import CostAPITool
+
+    set_scenario(_build_scenario_2_tagging())
+    tool = CostAPITool()
+    result = tool.get_team_spending("release-team")
+
+    assert result.get("success") is True
+    assert result["budget"]["current_spend"] == "$4,500.00"
+    assert result["budget"]["monthly_budget"] == "$2,400"
+
+
+def test_scenario_legacy_mock_explicit_selection_keeps_legacy_values():
+    """The legacy numbers should only appear when the explicit Legacy Mock scenario is selected."""
+    from src.scenarios import _build_scenario_legacy_mock
+    from src.tools.cost_api_tool import CostAPITool
+
+    set_scenario(_build_scenario_legacy_mock())
+    tool = CostAPITool()
+    result = tool.get_team_spending("release-team")
+
+    assert result.get("success") is True
+    assert result["budget"]["current_spend"] == "$2,650.00"
