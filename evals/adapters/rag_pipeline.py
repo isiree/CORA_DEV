@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from src.g import bind_shared_scenario_run
+from src.scenarios import build_scenario_run
 from src.tools.historical_tool import HistoricalTool
 
 
@@ -66,7 +68,9 @@ class HistoricalRAGEvalAdapter:
 
     def run_case(self, case: dict[str, Any]) -> RAGCaseResult:
         query = case["user_query"]
-        result = self.tool.search(query, top_k=self.top_k, summarize=self.summarize)
+        scenario_run = build_scenario_run(case["scenario_id"])
+        with bind_shared_scenario_run(scenario_run):
+            result = self.tool.search(query, top_k=self.top_k, summarize=self.summarize)
         raw_results = list(result.get("results") or [])
 
         final_output = str(result.get("summary") or _fallback_response(raw_results)).strip()
