@@ -3,5 +3,5 @@
 | workflow | full_system | 5 | 0.689345 | 0.88 | 0.95 | 0.8 |  |  |  |  | Current end-to-end mock workflow in app.py. |
 | workflow | system_without_rag | 5 | 0.689345 | 0.88 | 0.95 | 0.8 |  |  |  |  | Same workflow with RAG conceptually disabled; on the current fixed root-cause dataset it usually matches the full system because prompts resolve through deterministic mock branches. |
 | workflow | minimal_tool_path | 5 | 0.536757 | 0.826667 | 0.583333 | 0.0 |  |  |  |  | Pipeline-first minimal baseline using only the earliest available tool step. |
-| rag_component | semantic_rag_current | 5 | 0.071375 |  |  |  | 0.829118 | 0.31035 | 0.7699 | 0.933333 | Current semantic retrieval plus summary generation path, scored with the local RAG fallback metrics for benchmark comparability. |
+| rag_component | semantic_rag_current | 5 | 0.260152 |  |  |  | 0.942424 | 0.855 | 0.690387 | 0.5 | Current semantic retrieval plus summary generation path, scored with the local RAG fallback metrics for benchmark comparability. |
 | rag_component | keyword_rag_baseline | 5 | 0.08858 |  |  |  | 1.0 | 0.85 | 1.0 | 0.166667 | Simple keyword-overlap retrieval baseline over local markdown knowledge docs. |
