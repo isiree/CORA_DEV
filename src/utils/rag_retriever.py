@@ -4,6 +4,7 @@ Extracts and productionizes the retrieval logic from pdf_loader.ipynb.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -23,6 +24,8 @@ class RAGRetriever:
     
     Features:
     - Semantic similarity search
+    - Hybrid dense + keyword retrieval
+    - Heuristic reranking with source diversity
     - Caching to avoid redundant queries
     - Metadata filtering
     - Distance-to-similarity conversion
@@ -53,6 +56,23 @@ class RAGRetriever:
         self._collection: Optional[chromadb.Collection] = None
         self._embedding_model: Optional[SentenceTransformer] = None
         self._cache = get_cache() if use_cache else None
+        self._keyword_corpus: Optional[list[dict]] = None
+
+        self.hybrid_enabled = os.getenv("RAG_HYBRID_ENABLED", "true").lower() != "false"
+        self.candidate_multiplier = max(int(os.getenv("RAG_CANDIDATE_MULTIPLIER", "4")), 2)
+        self.max_per_source = max(int(os.getenv("RAG_MAX_RESULTS_PER_SOURCE", "1")), 1)
+
+    _TOKEN_RE = re.compile(r"[a-z0-9]+")
+    _SCENARIO_RE = re.compile(r"\bscenario\s+\d+\b", re.IGNORECASE)
+    _QUESTION_PREFIXES = (
+        "what is the main reason for",
+        "what is the main root cause of",
+        "what is the root cause of",
+        "what is the reason for",
+        "what caused",
+        "why did",
+        "why is",
+    )
     
     @property
     def client(self) -> chromadb.ClientAPI:
@@ -90,6 +110,223 @@ class RAGRetriever:
     def _distance_to_similarity(self, distance: float) -> float:
         """Convert cosine distance to similarity score."""
         return 1 - distance
+
+    def _normalize_query(self, query: str) -> str:
+        """Remove boilerplate phrasing that tends to distract retrieval."""
+        normalized = str(query or "").strip()
+        normalized = self._SCENARIO_RE.sub(" ", normalized)
+        lowered = normalized.lower()
+        for prefix in self._QUESTION_PREFIXES:
+            if lowered.startswith(prefix):
+                normalized = normalized[len(prefix) :].strip(" ?.:")
+                break
+        normalized = re.sub(r"\b(in|for|of)\s*$", "", normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r"\s+", " ", normalized).strip(" ?.:")
+        return normalized or str(query or "").strip()
+
+    def _tokenize(self, text: str) -> set[str]:
+        return {token for token in self._TOKEN_RE.findall(str(text or "").lower()) if len(token) > 2}
+
+    def _extract_query_anchors(self, query: str) -> set[str]:
+        anchors = set()
+        for raw in re.findall(r"[A-Za-z0-9_=\-/]+", str(query or "")):
+            token = raw.strip(".,:;()[]{}'\"").lower()
+            if len(token) >= 4 and ("-" in token or "_" in token or "=" in token or any(ch.isdigit() for ch in token)):
+                anchors.add(token)
+        return anchors
+
+    def _semantic_candidates(
+        self,
+        query: str,
+        n_results: int,
+        filter_metadata: Optional[dict] = None,
+    ) -> list[dict]:
+        query_embedding = self.embedding_model.encode(query).tolist()
+        query_params = {
+            "query_embeddings": [query_embedding],
+            "n_results": n_results,
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if filter_metadata:
+            query_params["where"] = filter_metadata
+
+        results = self.collection.query(**query_params)
+        processed_results = []
+        if results["documents"] and results["documents"][0]:
+            for i, doc in enumerate(results["documents"][0]):
+                distance = results["distances"][0][i]
+                processed_results.append(
+                    {
+                        "content": doc,
+                        "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
+                        "similarity": round(self._distance_to_similarity(distance), 4),
+                        "distance": round(distance, 4),
+                        "retrieval_strategy": "dense",
+                    }
+                )
+        return processed_results
+
+    def _get_keyword_corpus(self) -> list[dict]:
+        if self._keyword_corpus is not None:
+            return self._keyword_corpus
+
+        corpus: list[dict] = []
+        try:
+            rows = self.collection.get(include=["documents", "metadatas"])
+            documents = list(rows.get("documents") or [])
+            metadatas = list(rows.get("metadatas") or [])
+            for idx, doc in enumerate(documents):
+                metadata = metadatas[idx] if idx < len(metadatas) else {}
+                corpus.append(
+                    {
+                        "content": doc,
+                        "metadata": metadata or {},
+                    }
+                )
+        except Exception:
+            corpus = []
+
+        self._keyword_corpus = corpus
+        return self._keyword_corpus
+
+    def _keyword_candidates(
+        self,
+        query: str,
+        top_k: int,
+        filter_metadata: Optional[dict] = None,
+    ) -> list[dict]:
+        query_tokens = self._tokenize(query)
+        query_anchors = self._extract_query_anchors(query)
+        if not query_tokens and not query_anchors:
+            return []
+
+        scored = []
+        for row in self._get_keyword_corpus():
+            metadata = dict(row.get("metadata") or {})
+            if filter_metadata and any(metadata.get(key) != value for key, value in filter_metadata.items()):
+                continue
+
+            content = str(row.get("content") or "")
+            content_tokens = self._tokenize(content)
+            if not content_tokens:
+                continue
+
+            token_overlap = len(query_tokens & content_tokens)
+            anchor_overlap = sum(1 for anchor in query_anchors if anchor in content.lower())
+            if token_overlap == 0 and anchor_overlap == 0:
+                continue
+
+            keyword_score = (token_overlap / max(1, len(query_tokens))) + (0.25 * anchor_overlap)
+            scored.append(
+                {
+                    "content": content,
+                    "metadata": metadata,
+                    "similarity": 0.0,
+                    "distance": 1.0,
+                    "keyword_score": round(keyword_score, 4),
+                    "retrieval_strategy": "keyword",
+                }
+            )
+
+        scored.sort(
+            key=lambda item: (
+                -float(item.get("keyword_score", 0.0)),
+                str((item.get("metadata") or {}).get("source", "")),
+                int((item.get("metadata") or {}).get("page", -1) or -1),
+            )
+        )
+        return scored[:top_k]
+
+    def _candidate_key(self, row: dict) -> str:
+        metadata = row.get("metadata") or {}
+        return "|".join(
+            [
+                str(metadata.get("source", "")),
+                str(metadata.get("page", "")),
+                str(metadata.get("chunk_index", "")),
+                str(row.get("content", ""))[:80],
+            ]
+        )
+
+    def _source_boost(self, metadata: dict) -> float:
+        source = str((metadata or {}).get("source", "")).lower()
+        if re.search(r"data/knowledge/doc\d+\.md$", source):
+            return 0.25
+        if source.endswith(".md") or source.endswith(".markdown"):
+            return 0.12
+        if "cloud-finops-collaborative-real-time-cloud-financial-management" in source:
+            return -0.08
+        return 0.0
+
+    def _rerank_candidates(self, query: str, dense_results: list[dict], keyword_results: list[dict], top_k: int) -> list[dict]:
+        query_tokens = self._tokenize(query)
+        query_anchors = self._extract_query_anchors(query)
+
+        merged: dict[str, dict] = {}
+        for row in dense_results + keyword_results:
+            key = self._candidate_key(row)
+            current = merged.get(key)
+            if current is None:
+                merged[key] = dict(row)
+                continue
+
+            current["similarity"] = max(float(current.get("similarity", 0.0)), float(row.get("similarity", 0.0)))
+            current["distance"] = min(float(current.get("distance", 1.0)), float(row.get("distance", 1.0)))
+            current["keyword_score"] = max(float(current.get("keyword_score", 0.0)), float(row.get("keyword_score", 0.0)))
+            strategies = {current.get("retrieval_strategy", ""), row.get("retrieval_strategy", "")} - {""}
+            current["retrieval_strategy"] = "+".join(sorted(strategies))
+
+        reranked = []
+        for row in merged.values():
+            content = str(row.get("content") or "")
+            metadata = dict(row.get("metadata") or {})
+            content_tokens = self._tokenize(content)
+            token_overlap = len(query_tokens & content_tokens) / max(1, len(query_tokens)) if query_tokens else 0.0
+            anchor_overlap = sum(1 for anchor in query_anchors if anchor in content.lower())
+            anchor_score = min(anchor_overlap * 0.2, 0.4)
+            semantic_score = float(row.get("similarity", 0.0))
+            keyword_score = max(float(row.get("keyword_score", 0.0)), token_overlap)
+            hybrid_score = (
+                (0.5 * semantic_score)
+                + (0.35 * keyword_score)
+                + (0.1 * anchor_score)
+                + self._source_boost(metadata)
+            )
+            reranked.append(
+                {
+                    **row,
+                    "keyword_score": round(keyword_score, 4),
+                    "anchor_score": round(anchor_score, 4),
+                    "hybrid_score": round(hybrid_score, 4),
+                }
+            )
+
+        reranked.sort(
+            key=lambda item: (
+                -float(item.get("hybrid_score", 0.0)),
+                -float(item.get("similarity", 0.0)),
+                -float(item.get("keyword_score", 0.0)),
+            )
+        )
+
+        selected = []
+        per_source: dict[str, int] = {}
+        for row in reranked:
+            source = str((row.get("metadata") or {}).get("source", ""))
+            if per_source.get(source, 0) >= self.max_per_source:
+                continue
+            selected.append(row)
+            per_source[source] = per_source.get(source, 0) + 1
+            if len(selected) >= top_k:
+                return selected
+
+        for row in reranked:
+            if row in selected:
+                continue
+            selected.append(row)
+            if len(selected) >= top_k:
+                break
+        return selected
     
     def retrieve(
         self,
@@ -110,48 +347,47 @@ class RAGRetriever:
         Returns:
             List of results with content, metadata, and similarity scores
         """
+        normalized_query = self._normalize_query(query)
         # Check cache first
         if self.use_cache and self._cache:
             cached = self._cache.get(
                 "historical",
                 query=query,
+                normalized_query=normalized_query,
                 top_k=top_k,
                 min_similarity=min_similarity,
-                filter_metadata=filter_metadata
+                filter_metadata=filter_metadata,
+                hybrid_enabled=self.hybrid_enabled,
             )
             if cached is not None:
                 return cached
-        
-        # Generate query embedding
-        query_embedding = self.embedding_model.encode(query).tolist()
-        
-        # Build query parameters
-        query_params = {
-            "query_embeddings": [query_embedding],
-            "n_results": top_k,
-            "include": ["documents", "metadatas", "distances"]
-        }
-        
-        if filter_metadata:
-            query_params["where"] = filter_metadata
-        
-        # Query ChromaDB
-        results = self.collection.query(**query_params)
-        
-        # Process results
-        processed_results = []
-        if results["documents"] and results["documents"][0]:
-            for i, doc in enumerate(results["documents"][0]):
-                distance = results["distances"][0][i]
-                similarity = self._distance_to_similarity(distance)
-                
-                if similarity >= min_similarity:
-                    processed_results.append({
-                        "content": doc,
-                        "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                        "similarity": round(similarity, 4),
-                        "distance": round(distance, 4)
-                    })
+
+        candidate_count = max(top_k * self.candidate_multiplier, top_k)
+        dense_queries = [query]
+        if normalized_query and normalized_query != query:
+            dense_queries.append(normalized_query)
+
+        dense_candidates: list[dict] = []
+        seen_dense = set()
+        for dense_query in dense_queries:
+            for row in self._semantic_candidates(dense_query, candidate_count, filter_metadata=filter_metadata):
+                key = self._candidate_key(row)
+                if key in seen_dense:
+                    continue
+                seen_dense.add(key)
+                dense_candidates.append(row)
+
+        if self.hybrid_enabled:
+            keyword_candidates = self._keyword_candidates(normalized_query or query, candidate_count, filter_metadata=filter_metadata)
+            processed_results = self._rerank_candidates(normalized_query or query, dense_candidates, keyword_candidates, top_k=top_k)
+        else:
+            processed_results = dense_candidates[:top_k]
+
+        processed_results = [
+            row
+            for row in processed_results
+            if float(row.get("similarity", 0.0)) >= min_similarity or float(row.get("keyword_score", 0.0)) > 0.0
+        ]
         
         # Cache results
         if self.use_cache and self._cache:
@@ -159,9 +395,11 @@ class RAGRetriever:
                 "historical",
                 processed_results,
                 query=query,
+                normalized_query=normalized_query,
                 top_k=top_k,
                 min_similarity=min_similarity,
-                filter_metadata=filter_metadata
+                filter_metadata=filter_metadata,
+                hybrid_enabled=self.hybrid_enabled,
             )
         
         return processed_results
@@ -212,6 +450,7 @@ class RAGRetriever:
         # Clear cache since data changed
         if self.use_cache and self._cache:
             self._cache.clear("historical")
+        self._keyword_corpus = None
 
 
 # Singleton instance

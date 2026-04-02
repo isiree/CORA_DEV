@@ -268,6 +268,66 @@ def test_historical_tool_top_level_returns_string(mock_groq, mock_chroma):
     assert isinstance(result, str)
 
 
+def test_rag_retriever_rerank_prefers_knowledge_doc_for_keyword_overlap():
+    """Hybrid reranking should favor targeted markdown knowledge docs over generic background chunks."""
+    pytest.importorskip("chromadb")
+    pytest.importorskip("sentence_transformers")
+    from src.utils.rag_retriever import RAGRetriever
+
+    retriever = RAGRetriever(use_cache=False)
+    dense_results = [
+        {
+            "content": "General FinOps background and broad cloud budgeting guidance.",
+            "metadata": {
+                "source": "data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management.pdf",
+                "page": 10,
+                "chunk_index": 0,
+            },
+            "similarity": 0.72,
+            "distance": 0.28,
+            "retrieval_strategy": "dense",
+        }
+    ]
+    keyword_results = [
+        {
+            "content": "Incorrect team values such as team=legacy can push Release Team spend into the unallocated bucket.",
+            "metadata": {
+                "source": "data/knowledge/doc2.md",
+                "chunk_index": 0,
+            },
+            "similarity": 0.0,
+            "distance": 1.0,
+            "keyword_score": 1.0,
+            "retrieval_strategy": "keyword",
+        }
+    ]
+
+    ranked = retriever._rerank_candidates(
+        "What is the main root cause of the unallocated cost increase in Scenario 2?",
+        dense_results,
+        keyword_results,
+        top_k=1,
+    )
+
+    assert ranked
+    assert ranked[0]["metadata"]["source"] == "data/knowledge/doc2.md"
+
+
+def test_rag_retriever_normalize_query_strips_boilerplate():
+    """Query normalization should remove scenario boilerplate before retrieval."""
+    pytest.importorskip("chromadb")
+    pytest.importorskip("sentence_transformers")
+    from src.utils.rag_retriever import RAGRetriever
+
+    retriever = RAGRetriever(use_cache=False)
+    normalized = retriever._normalize_query(
+        "What is the main reason for the Release Team cost spike in Scenario 5?"
+    )
+
+    assert "scenario 5" not in normalized.lower()
+    assert normalized.lower().startswith("the release team cost spike") or normalized.lower().startswith("release team cost spike")
+
+
 def test_scenario_switch_changes_pipeline_data(mock_groq):
     """Switching scenarios must change pipeline data returned by PipelineTool."""
     pytest.importorskip("langchain_groq")
@@ -318,3 +378,62 @@ def test_scenario_legacy_mock_explicit_selection_keeps_legacy_values():
 
     assert result.get("success") is True
     assert result["budget"]["current_spend"] == "$2,650.00"
+
+
+def test_historical_tool_builds_scenario_hint_with_high_signal_evidence(mock_groq):
+    """Scenario-aware retrieval hints should include concrete pipeline and resource anchors."""
+    pytest.importorskip("langchain_groq")
+    from src.scenarios import build_scenario_run
+    from src.tools.historical_tool import HistoricalTool
+
+    set_scenario(build_scenario_run("scenario_5_app_misconfig"))
+    tool = HistoricalTool()
+    hint = tool._build_scenario_retrieval_hint(tool._get_active_scenario_run())
+
+    assert "deploy-release-api" in hint
+    assert "MAX_WORKERS=500" in hint
+    assert "release-api" in hint
+
+
+def test_historical_tool_prioritize_results_prefers_matching_runbook_for_active_scenario(mock_groq):
+    """Scenario-aware prioritization should favor the autoscaler runbook over generic background docs."""
+    pytest.importorskip("langchain_groq")
+    from src.scenarios import build_scenario_run
+    from src.tools.historical_tool import HistoricalTool
+
+    set_scenario(build_scenario_run("scenario_3_autoscaler"))
+    tool = HistoricalTool()
+    scenario_hint = tool._build_scenario_retrieval_hint(tool._get_active_scenario_run())
+    results = [
+        {
+            "content": "# Team subscriptions\nRelease Team budget and subscriptions.",
+            "metadata": {"source": "team_subscriptions.pdf", "page": 0},
+            "similarity": 0.95,
+            "keyword_score": 0.1,
+            "hybrid_score": 0.95,
+        },
+        {
+            "content": "# Autoscaler Not Scaling Down & Cost Impact\n\n## Likely Causes\n- Recent config change to autoscaler parameters that inadvertently broke scale-down behaviour.",
+            "metadata": {"source": "data/knowledge/doc3.md", "page": 0},
+            "similarity": 0.72,
+            "keyword_score": 0.8,
+            "hybrid_score": 0.82,
+        },
+        {
+            "content": "# Cost Attribution Issues Due to Missing or Incorrect Tags\n\n## Likely Causes\n- Incorrect team values can push spend into the unallocated bucket.",
+            "metadata": {"source": "data/knowledge/doc2.md", "page": 0},
+            "similarity": 0.7,
+            "keyword_score": 0.5,
+            "hybrid_score": 0.71,
+        },
+    ]
+
+    prioritized = tool._prioritize_results(
+        results,
+        query="What is the main reason for the Release Team cost spike in Scenario 3?",
+        scenario_hint=scenario_hint,
+        top_k=2,
+    )
+
+    assert prioritized
+    assert prioritized[0]["metadata"]["source"] == "data/knowledge/doc3.md"
