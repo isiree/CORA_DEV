@@ -1,21 +1,20 @@
 {
-  "generated_at": "2026-04-01T13:50:26.313701+00:00",
+  "generated_at": "2026-04-02T09:21:01.682954+00:00",
   "dataset_id": "imrag-mock-root-cause-starter",
   "dataset_version": "0.1.0",
   "dataset_path": "evals/dataset/mock_scenarios_starter.json",
   "evaluation_component": "historical_tool",
-  "scoring_mode": "ragas",
+  "scoring_mode": "local_fallback",
   "top_k": 3,
   "metrics": {
-    "context_precision": 0.1,
-    "context_recall": 0.1,
-    "faithfulness": 0.823413,
-    "answer_relevancy": 0.0
+    "answer_relevancy": 0.5,
+    "faithfulness": 0.690387,
+    "context_precision": 0.942424,
+    "context_recall": 0.855
   },
   "backend": {
-    "ragas_version": "0.4.3",
-    "llm_model": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "embedding_model": "all-MiniLM-L6-v2"
+    "reason": "Requested local-only mode.",
+    "todo": "Install and configure RAGAS-compatible judge dependencies if you want LLM-graded metrics instead of the local approximation."
   },
   "assumptions": [
     "This runner evaluates the current historical_tool RAG path: retrieve top-k chunks, then summarize them into a final answer.",

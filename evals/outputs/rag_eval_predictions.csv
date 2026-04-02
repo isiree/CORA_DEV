@@ -1,98 +1,69 @@
 test_id,scenario_id,user_query,expected_root_cause_label,expected_team,expected_service,retrieved_context_count,retrieved_sources,context_precision,context_recall,faithfulness,answer_relevancy,reference_answer,eval_response,final_output,notes
-mock_s1_root_cause_001,scenario_1_vm_destroy,What is the main reason for the CI Team cost spike in Scenario 1?,failed_cleanup_orphaned_resources,ci-team,load-test environment,3,data/knowledge/doc2.md | data/knowledge/doc1.md | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=118,0.49999999995,0.5,0.7777777777777778,0.0,"The CI Team spike is caused by failed cleanup of the load-test environment. deploy-loadtest created the environment, then destroy-loadtest failed on January 10, 11, and 12, 2025 because terraform-destroy hit a state-lock error, leaving the load-test VMs running.","- The main reason for the CI Team cost spike in Scenario 1 is not directly stated in the search results. However, several potential causes of cost spikes are mentioned, including: 
-  - Recent infrastructure changes made outside the standard IaC pipeline (e.g., manual console deployments) (Source: doc2.md)
-  - Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal (Source: doc1.md)
-  - CI/CD pipeline shows failed or partially completed destroy/cleanup runs (Source: doc1.md)
-  - Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner (Source: doc1.md)
+mock_s1_root_cause_001,scenario_1_vm_destroy,What is the main reason for the CI Team cost spike in Scenario 1?,failed_cleanup_orphaned_resources,ci-team,load-test environment,3,data/knowledge/doc1.md | data/knowledge/doc5.md | data/knowledge/doc4.md,1.0,1.0,0.77193,0.333333,"The CI Team spike is caused by failed cleanup of the load-test environment. deploy-loadtest created the environment, then destroy-loadtest failed on January 10, 11, and 12, 2025 because terraform-destroy hit a state-lock error, leaving the load-test VMs running.","- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)
+- Scenario evidence: deploy-loadtest success on 2025-01-09 (Source: data/knowledge/doc1.md)
+- Supporting evidence: **State drift** — resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)
+- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)
+- Scenario evidence: destroy-loadtest failed on 2025-01-10; terraform-destroy logged 'Error: Error acquiring the state lock' (Source: data/knowledge/doc1.md)","- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)
+- Scenario evidence: deploy-loadtest success on 2025-01-09 (Source: data/knowledge/doc1.md)
+- Supporting evidence: **State drift** — resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)
+- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)
+- Scenario evidence: destroy-loadtest failed on 2025-01-10; terraform-destroy logged 'Error: Error acquiring the state lock' (Source: data/knowledge/doc1.md)
 
-To determine the exact cause of the CI Team cost spike in Scenario 1, more specific information about Scenario 1 would be required. 
-
-It is worth noting that having an automated system in place to see spend patterns and an approximate date when spend will increase too much can help CCoEs be proactive and prepare for executive scrutiny (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).","- The main reason for the CI Team cost spike in Scenario 1 is not directly stated in the search results. However, several potential causes of cost spikes are mentioned, including: 
-  - Recent infrastructure changes made outside the standard IaC pipeline (e.g., manual console deployments) (Source: doc2.md)
-  - Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal (Source: doc1.md)
-  - CI/CD pipeline shows failed or partially completed destroy/cleanup runs (Source: doc1.md)
-  - Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner (Source: doc1.md)
-
-To determine the exact cause of the CI Team cost spike in Scenario 1, more specific information about Scenario 1 would be required. 
-
-It is worth noting that having an automated system in place to see spend patterns and an approximate date when spend will increase too much can help CCoEs be proactive and prepare for executive scrutiny (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
+Sources:
+- data/knowledge/doc1.md
+- data/knowledge/doc5.md
+- data/knowledge/doc4.md",Derived from app.py _build_mock_root_cause_result for scenario_1_vm_destroy and scenario builder resources res-loadtest-1 / res-loadtest-2.
+mock_s2_root_cause_001,scenario_2_tagging,What is the main root cause of the unallocated cost increase in Scenario 2?,tagging_regression_misattribution,release-team,resource-tagging,3,data/knowledge/doc2.md | data/knowledge/doc1.md | data/knowledge/doc4.md,1.0,1.0,0.622581,0.333333,"The increase is caused by a tagging regression rather than real new usage. deploy-release-prod on January 14, 2025 introduced incorrect tags, including team=legacy and missing ownership tags, so Release Team spend was pushed into the unallocated bucket.","- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)
+- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy' (Source: data/knowledge/doc2.md)
+- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)
+- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)","- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)
+- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy' (Source: data/knowledge/doc2.md)
+- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)
+- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)
 
 Sources:
 - data/knowledge/doc2.md
 - data/knowledge/doc1.md
-- data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf",Derived from app.py _build_mock_root_cause_result for scenario_1_vm_destroy and scenario builder resources res-loadtest-1 / res-loadtest-2.
-mock_s2_root_cause_001,scenario_2_tagging,What is the main root cause of the unallocated cost increase in Scenario 2?,tagging_regression_misattribution,release-team,resource-tagging,3,data/knowledge/doc2.md | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=263 | data/knowledge/doc2.md,0.0,0.0,0.875,0.0,"The increase is caused by a tagging regression rather than real new usage. deploy-release-prod on January 14, 2025 introduced incorrect tags, including team=legacy and missing ownership tags, so Release Team spend was pushed into the unallocated bucket.","- The main root cause of the unallocated cost increase in Scenario 2 is not directly stated in the search results. However, several potential causes of unallocated or ""unknown"" cost segments are mentioned, including: 
-  - Total subscription/account spend growing faster than any individual team's reported cost (Source: doc2.md).
-  - Recent infrastructure changes made outside the standard IaC pipeline (e.g., manual console deployments) (Source: doc2.md).
-- To identify the root cause of unallocated cost increases, the following steps are recommended:
-  - Compare subscription-level vs. team-level cost totals (Source: doc2.md).
-  - Inspect the ""unallocated"" or ""other"" cost bucket in the cost management tool (Source: doc2.md).
-  - Cross-reference resource names and groups with known team ownership (Source: doc2.md).
-  - Check recent IaC changes and pipeline runs (Source: doc2.md).
-  - Audit tag keys and values on the flagged resources (Source: doc2.md).","- The main root cause of the unallocated cost increase in Scenario 2 is not directly stated in the search results. However, several potential causes of unallocated or ""unknown"" cost segments are mentioned, including: 
-  - Total subscription/account spend growing faster than any individual team's reported cost (Source: doc2.md).
-  - Recent infrastructure changes made outside the standard IaC pipeline (e.g., manual console deployments) (Source: doc2.md).
-- To identify the root cause of unallocated cost increases, the following steps are recommended:
-  - Compare subscription-level vs. team-level cost totals (Source: doc2.md).
-  - Inspect the ""unallocated"" or ""other"" cost bucket in the cost management tool (Source: doc2.md).
-  - Cross-reference resource names and groups with known team ownership (Source: doc2.md).
-  - Check recent IaC changes and pipeline runs (Source: doc2.md).
-  - Audit tag keys and values on the flagged resources (Source: doc2.md).
+- data/knowledge/doc4.md","expected_service is modeled as a service-like control-plane category because this scenario is a cost-allocation issue, not a single runtime workload."
+mock_s3_root_cause_001,scenario_3_autoscaler,What is the main reason for the Release Team cost spike in Scenario 3?,autoscaler_no_scale_down,release-team,web-frontend-asg,3,data/knowledge/doc3.md | data/knowledge/doc5.md | data/knowledge/doc1.md,1.0,0.625,0.676471,0.833333,"The spike is caused by a bad autoscaler configuration change. update-web-autoscaler ran on January 9, 2025, then web-frontend-asg scaled from 4 to 12 instances on January 10 and never scaled back down, creating sustained compute cost.","- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)
+- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits' (Source: data/knowledge/doc3.md)
+- Supporting evidence: **Wrong scaling metric** — scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)
+- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)
+- Scenario evidence: web-frontend-asg; team=release-team; Instance count: 4 -> 12 on Jan 10. Current: 12. No scale-down events logged. (Source: data/knowledge/doc3.md)","- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)
+- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits' (Source: data/knowledge/doc3.md)
+- Supporting evidence: **Wrong scaling metric** — scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)
+- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)
+- Scenario evidence: web-frontend-asg; team=release-team; Instance count: 4 -> 12 on Jan 10. Current: 12. No scale-down events logged. (Source: data/knowledge/doc3.md)
 
 Sources:
-- data/knowledge/doc2.md
-- data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf","expected_service is modeled as a service-like control-plane category because this scenario is a cost-allocation issue, not a single runtime workload."
-mock_s3_root_cause_001,scenario_3_autoscaler,What is the main reason for the Release Team cost spike in Scenario 3?,autoscaler_no_scale_down,release-team,web-frontend-asg,3,data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=263 | data/knowledge/doc2.md | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=106,0.0,0.0,0.7142857142857143,0.0,"The spike is caused by a bad autoscaler configuration change. update-web-autoscaler ran on January 9, 2025, then web-frontend-asg scaled from 4 to 12 instances on January 10 and never scaled back down, creating sustained compute cost.","Unfortunately, the provided search results do not contain specific information about the Release Team cost spike in Scenario 3. 
-
-However, I can provide some general insights related to cloud cost management:
-
-- A cost spike can be caused by various factors, including infrastructure changes made outside the standard IaC pipeline (Source: doc2.md).
-- Teams can experience increased spend due to changes in their infrastructure, such as increasing the footprint of an application's infrastructure to improve customer experience (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Proper cost allocation and tagging can help teams and organizations understand their spending and make informed decisions about budget variances (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-To find the specific reason for the Release Team cost spike in Scenario 3, I would recommend searching for more relevant documents or information.","Unfortunately, the provided search results do not contain specific information about the Release Team cost spike in Scenario 3. 
-
-However, I can provide some general insights related to cloud cost management:
-
-- A cost spike can be caused by various factors, including infrastructure changes made outside the standard IaC pipeline (Source: doc2.md).
-- Teams can experience increased spend due to changes in their infrastructure, such as increasing the footprint of an application's infrastructure to improve customer experience (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Proper cost allocation and tagging can help teams and organizations understand their spending and make informed decisions about budget variances (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-To find the specific reason for the Release Team cost spike in Scenario 3, I would recommend searching for more relevant documents or information.
+- data/knowledge/doc3.md
+- data/knowledge/doc5.md
+- data/knowledge/doc1.md",Ground truth comes from app.py scenario 3 root-cause summary and the scenario resource metrics for res-web-frontend / web-frontend-asg.
+mock_s4_root_cause_001,scenario_4_forgotten_poc,What is the main reason for the CloudOps Team cost spike in Scenario 4?,forgotten_poc_environment,cloudops-team,poc-analytics,3,data/knowledge/doc4.md | data/knowledge/doc1.md | data/knowledge/doc5.md,1.0,1.0,0.690476,0.333333,"The spike is caused by a forgotten proof-of-concept environment. deploy-poc-analytics created analytics resources that stayed active after January 14, 2025, while the dashboard POC was cleaned up successfully. The abandoned analytics environment is the cost driver.","- Closest historical match: a forgotten or abandoned test/POC environment left running after the work was finished (Source: data/knowledge/doc4.md)
+- Scenario evidence: deploy-poc-analytics success on 2025-01-14 (Source: data/knowledge/doc4.md)
+- Supporting evidence: No automated destroy pipeline exists; teardown was left as a manual step that never happened. (Source: data/knowledge/doc4.md)
+- Supporting evidence: A cost review surfaces non-production spend with no associated active project or ticket. (Source: data/knowledge/doc4.md)
+- Scenario evidence: deploy-poc-dashboard success on 2025-01-10 (Source: data/knowledge/doc4.md)","- Closest historical match: a forgotten or abandoned test/POC environment left running after the work was finished (Source: data/knowledge/doc4.md)
+- Scenario evidence: deploy-poc-analytics success on 2025-01-14 (Source: data/knowledge/doc4.md)
+- Supporting evidence: No automated destroy pipeline exists; teardown was left as a manual step that never happened. (Source: data/knowledge/doc4.md)
+- Supporting evidence: A cost review surfaces non-production spend with no associated active project or ticket. (Source: data/knowledge/doc4.md)
+- Scenario evidence: deploy-poc-dashboard success on 2025-01-10 (Source: data/knowledge/doc4.md)
 
 Sources:
-- data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf
-- data/knowledge/doc2.md",Ground truth comes from app.py scenario 3 root-cause summary and the scenario resource metrics for res-web-frontend / web-frontend-asg.
-mock_s4_root_cause_001,scenario_4_forgotten_poc,What is the main reason for the CloudOps Team cost spike in Scenario 4?,forgotten_poc_environment,cloudops-team,poc-analytics,3,data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=98 | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=139 | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=263,0.0,0.0,0.8333333333333334,0.0,"The spike is caused by a forgotten proof-of-concept environment. deploy-poc-analytics created analytics resources that stayed active after January 14, 2025, while the dashboard POC was cleaned up successfully. The abandoned analytics environment is the cost driver.","Unfortunately, the provided search results do not specifically mention the CloudOps Team cost spike in Scenario 4. However, they do provide general information about cloud financial management, anomaly detection, and cost optimization.
-
-- The search results emphasize the importance of anomaly detection in cloud spend, citing an example of a remote engineering team that spun up large instances, resulting in a significant cost increase (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- They also discuss the use of scorecards to benchmark team performance, including metrics such as quality, speed, and cost (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Additionally, the results provide examples of companies making intentional decisions to increase spend in order to drive business outcomes, such as improving customer experience or driving growth (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-To directly answer the user's query, more specific information about Scenario 4 and the CloudOps Team cost spike would be required.","Unfortunately, the provided search results do not specifically mention the CloudOps Team cost spike in Scenario 4. However, they do provide general information about cloud financial management, anomaly detection, and cost optimization.
-
-- The search results emphasize the importance of anomaly detection in cloud spend, citing an example of a remote engineering team that spun up large instances, resulting in a significant cost increase (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- They also discuss the use of scorecards to benchmark team performance, including metrics such as quality, speed, and cost (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Additionally, the results provide examples of companies making intentional decisions to increase spend in order to drive business outcomes, such as improving customer experience or driving growth (Source: data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-To directly answer the user's query, more specific information about Scenario 4 and the CloudOps Team cost spike would be required.
+- data/knowledge/doc4.md
+- data/knowledge/doc1.md
+- data/knowledge/doc5.md",Derived from app.py scenario 4 root-cause answer and scenario resources poc-analytics-vm-1 and poc-analytics-db.
+mock_s5_root_cause_001,scenario_5_app_misconfig,What is the main reason for the Release Team cost spike in Scenario 5?,application_misconfiguration_over_scaling,release-team,release-api,3,data/knowledge/doc5.md | data/knowledge/doc1.md | data/knowledge/doc4.md,0.712121,0.65,0.690476,0.666667,"The spike is caused by an application configuration mistake in deploy-release-api. The January 19, 2025 rollout set MAX_WORKERS=500, which triggered a pod surge and retry storm in the release-api workload, driving excess compute usage.","- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)
+- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500' (Source: data/knowledge/doc5.md)
+- Supporting evidence: **Logic bugs** — a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)
+- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)
+- Scenario evidence: deploy-cloudops-service success on 2025-01-19 (Source: data/knowledge/doc5.md)","- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)
+- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500' (Source: data/knowledge/doc5.md)
+- Supporting evidence: **Logic bugs** — a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)
+- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)
+- Scenario evidence: deploy-cloudops-service success on 2025-01-19 (Source: data/knowledge/doc5.md)
 
 Sources:
-- data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf",Derived from app.py scenario 4 root-cause answer and scenario resources poc-analytics-vm-1 and poc-analytics-db.
-mock_s5_root_cause_001,scenario_5_app_misconfig,What is the main reason for the Release Team cost spike in Scenario 5?,application_misconfiguration_over_scaling,release-team,release-api,3,data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=263 | data/knowledge/doc2.md | data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf#page=46,0.0,0.0,0.9166666666666666,0.0,"The spike is caused by an application configuration mistake in deploy-release-api. The January 19, 2025 rollout set MAX_WORKERS=500, which triggered a pod surge and retry storm in the release-api workload, driving excess compute usage.","Unfortunately, the provided search results do not specifically mention the Release Team cost spike in Scenario 5. However, I can provide some general information related to cloud financial management and FinOps.
-
-- The importance of collaboration between teams, including engineering, business, and finance, is highlighted in a case study about a SaaS company that increased spend to improve customer experience (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Common indicators of potential issues with cloud spend include rapid growth in subscription/account spend, large ""unallocated"" or ""unknown"" cost segments, flat spend in a team's dashboard despite an increasing overall bill, and recent infrastructure changes made outside the standard IaC pipeline (Source: doc2.md).
-- A centralized FinOps team plays a crucial role in managing cloud strategy, governance, and best practices, and helps build trust among teams by providing objective recommendations and clear communication about cost allocation (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-If you have more information about Scenario 5 or the Release Team cost spike, I may be able to provide a more specific answer.","Unfortunately, the provided search results do not specifically mention the Release Team cost spike in Scenario 5. However, I can provide some general information related to cloud financial management and FinOps.
-
-- The importance of collaboration between teams, including engineering, business, and finance, is highlighted in a case study about a SaaS company that increased spend to improve customer experience (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-- Common indicators of potential issues with cloud spend include rapid growth in subscription/account spend, large ""unallocated"" or ""unknown"" cost segments, flat spend in a team's dashboard despite an increasing overall bill, and recent infrastructure changes made outside the standard IaC pipeline (Source: doc2.md).
-- A centralized FinOps team plays a crucial role in managing cloud strategy, governance, and best practices, and helps build trust among teams by providing objective recommendations and clear communication about cost allocation (Source: cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf).
-
-If you have more information about Scenario 5 or the Release Team cost spike, I may be able to provide a more specific answer.
-
-Sources:
-- data/knowledge/cloud-finops-collaborative-real-time-cloud-financial-management-1nbsped-1492054623-9781492054627_compress.pdf
-- data/knowledge/doc2.md",Ground truth is based on app.py scenario 5 root-cause logic and the scenario resource rel-api-pods / release-api metrics.
+- data/knowledge/doc5.md
+- data/knowledge/doc1.md
+- data/knowledge/doc4.md",Ground truth is based on app.py scenario 5 root-cause logic and the scenario resource rel-api-pods / release-api metrics.
