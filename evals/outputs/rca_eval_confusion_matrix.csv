@@ -1,0 +1,6 @@
+actual\predicted,application_misconfiguration_over_scaling,autoscaler_no_scale_down,failed_cleanup_orphaned_resources,forgotten_poc_environment,tagging_regression_misattribution
+application_misconfiguration_over_scaling,1,0,0,0,0
+autoscaler_no_scale_down,0,1,0,0,0
+failed_cleanup_orphaned_resources,0,0,1,0,0
+forgotten_poc_environment,0,0,0,1,0
+tagging_regression_misattribution,0,0,0,0,1

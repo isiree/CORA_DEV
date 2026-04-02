@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-04-01T13:49:02.422061+00:00",
+  "dataset_id": "imrag-mock-root-cause-starter",
+  "dataset_version": "0.1.0",
+  "dataset_path": "evals/dataset/mock_scenarios_starter.json",
+  "assumptions": [
+    "This runner evaluates the canonical deterministic mock root-cause function in app.py for the five numbered scenarios.",
+    "Predicted RCA labels are extracted from final answer text only.",
+    "Precision, recall, and F1 are macro-averaged across observed labels."
+  ],
+  "case_count": 5,
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "metric_convention": {
+    "precision": "macro",
+    "recall": "macro",
+    "f1": "macro"
+  },
+  "per_label": {
+    "application_misconfiguration_over_scaling": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    "autoscaler_no_scale_down": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    "failed_cleanup_orphaned_resources": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    "forgotten_poc_environment": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    "tagging_regression_misattribution": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    }
+  },
+  "confusion_matrix": {
+    "labels": [
+      "application_misconfiguration_over_scaling",
+      "autoscaler_no_scale_down",
+      "failed_cleanup_orphaned_resources",
+      "forgotten_poc_environment",
+      "tagging_regression_misattribution"
+    ],
+    "matrix": [
+      [
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    ]
+  }
+}
