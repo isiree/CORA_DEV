@@ -947,6 +947,68 @@ def test_fallback_agent_worker_thread_inherits_active_scenario():
     assert response.json()["answer"] == "scenario_2_tagging"
 
 
+def test_sequential_scenario_switch_does_not_leak_stale_data():
+    """Switching scenarios between requests must not leak root-cause evidence from the previous scenario."""
+    server = HTTPServer(("127.0.0.1", 0), app_module.CORARequestHandler)
+    port = server.server_address[1]
+    base_url = f"http://127.0.0.1:{port}"
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+
+    app_module._current_scenario_run = None
+    app_module._set_mode("Mock")
+    app_module.g.scenario_run = None
+    thread.start()
+    try:
+        first_config = _request(
+            base_url,
+            "POST",
+            "/api/config/scenario",
+            {"scenario_id": "scenario_1_vm_destroy"},
+        )
+        first_query = _request(
+            base_url,
+            "POST",
+            "/api/query",
+            {"prompt": "What is the main reason for the CI Team cost spike in Scenario 1?"},
+        )
+
+        second_config = _request(
+            base_url,
+            "POST",
+            "/api/config/scenario",
+            {"scenario_id": "scenario_2_tagging"},
+        )
+        second_query = _request(
+            base_url,
+            "POST",
+            "/api/query",
+            {"prompt": "What is the main root cause of the unallocated cost increase in Scenario 2?"},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        app_module._current_scenario_run = None
+        app_module.g.scenario_run = None
+
+    assert first_config.status_code == 200
+    assert second_config.status_code == 200
+    assert first_query.status_code == 200
+    assert second_query.status_code == 200
+
+    first_answer = first_query.json()["answer"]
+    second_answer = second_query.json()["answer"]
+
+    assert "destroy-loadtest" in first_answer
+    assert "state lock" in first_answer.lower()
+
+    assert "team=legacy" in second_answer
+    assert "unallocated" in second_answer.lower()
+    assert "destroy-loadtest" not in second_answer
+    assert "state lock" not in second_answer.lower()
+    assert "load-test" not in second_answer.lower()
+
+
 def test_post_query_missing_prompt_400(api_server):
     """Missing prompt field must return 400 with an error message."""
     response = _request(api_server, "POST", "/api/query", {})
