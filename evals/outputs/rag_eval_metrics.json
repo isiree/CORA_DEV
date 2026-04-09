@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-02T09:21:01.682954+00:00",
+  "generated_at": "2026-04-04T08:51:13.297980+00:00",
   "dataset_id": "imrag-mock-root-cause-starter",
   "dataset_version": "0.1.0",
   "dataset_path": "evals/dataset/mock_scenarios_starter.json",
@@ -7,13 +7,13 @@
   "scoring_mode": "local_fallback",
   "top_k": 3,
   "metrics": {
-    "answer_relevancy": 0.5,
-    "faithfulness": 0.690387,
-    "context_precision": 0.942424,
-    "context_recall": 0.855
+    "answer_relevancy": 0.433333,
+    "faithfulness": 0.75763,
+    "context_precision": 1.0,
+    "context_recall": 0.810556
   },
   "backend": {
-    "reason": "Requested local-only mode.",
+    "reason": "RAGAS evaluation failed: ImportError: cannot import name 'ContextOverflowError' from 'langchain_core.exceptions' (/Users/isiri/Isi26Projects/imrag/.venv/lib/python3.12/site-packages/langchain_core/exceptions.py)",
     "todo": "Install and configure RAGAS-compatible judge dependencies if you want LLM-graded metrics instead of the local approximation."
   },
   "assumptions": [
