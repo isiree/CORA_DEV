@@ -1,6 +1,77 @@
 test_id,scenario_id,expected_root_cause_label,predicted_root_cause_label,label_match,detected_intent,expected_tool_trajectory,observed_tools_used,final_output
-mock_s1_root_cause_001,scenario_1_vm_destroy,failed_cleanup_orphaned_resources,failed_cleanup_orphaned_resources,True,ROOT_CAUSE,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason for the CI Team cost spike is failed cleanup of the load-test environment. `deploy-loadtest` created the environment on January 9, 2025, but `destroy-loadtest` failed on January 10, 11, and 12 because `terraform-destroy` hit `Error acquiring the state lock`. That left the load-test VMs running and pushed daily spend from $100.00/day to $300.00/day."
-mock_s2_root_cause_001,scenario_2_tagging,tagging_regression_misattribution,tagging_regression_misattribution,True,ROOT_CAUSE,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason is a tagging regression, not new organic usage. `deploy-release-prod` on January 14, 2025 updated tags incorrectly, including `team=legacy`, so Release Team spend was misattributed into the unallocated bucket."
-mock_s3_root_cause_001,scenario_3_autoscaler,autoscaler_no_scale_down,autoscaler_no_scale_down,True,ROOT_CAUSE,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason is a bad autoscaler configuration change. `update-web-autoscaler` on January 9, 2025 was followed by `web-frontend-asg` scaling from 4 to 12 instances on January 10 with no scale-down, creating sustained excess compute cost."
-mock_s4_root_cause_001,scenario_4_forgotten_poc,forgotten_poc_environment,forgotten_poc_environment,True,ROOT_CAUSE,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason is a forgotten proof-of-concept environment. `deploy-poc-analytics` created resources that remained active after January 14, 2025, while the dashboard POC was actually destroyed successfully. The spike comes from abandoned analytics resources, not the decoy dashboard workflow."
-mock_s5_root_cause_001,scenario_5_app_misconfig,application_misconfiguration_over_scaling,application_misconfiguration_over_scaling,True,ROOT_CAUSE,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason is an application configuration mistake in `deploy-release-api`. The January 19, 2025 rollout set `MAX_WORKERS=500`, which triggered a pod-count surge and retry storm. This is an app-driven scaling problem rather than an orphaned infrastructure issue."
+mock_s1_root_cause_001,scenario_1_vm_destroy,failed_cleanup_orphaned_resources,failed_cleanup_orphaned_resources,True,GENERAL,pipeline_tool | cost_api_tool,cost_api_tool,"The main reason for the CI Team cost spike in Scenario 1 is the failure to destroy the load-test VMs `res-loadtest-1` and `res-loadtest-2` after the `deploy-loadtest` pipeline event. These VMs have been running continuously, causing a significant increase in daily spend from $100.00 to $300.00 after January 10, 2025.
+
+The cost data shows that these two VMs are the top contributors to the team's spending, with `res-loadtest-1` costing $4,200.00 per month and `res-loadtest-2` costing $4,095.00 per month. The team's budget status is critical, with a current spend of $7,200.00 and a budget used of 300.0%.
+
+To remediate this issue, I recommend the following steps:
+
+1. **Destroy the leftover load-test VMs**: Ensure that the `res-loadtest-1` and `res-loadtest-2` VMs are terminated to prevent further costs.
+2. **Review and adjust the destroy-loadtest pipeline**: Investigate the cause of the failed cleanup events and modify the pipeline to ensure that resources are properly destroyed after use.
+3. **Monitor team spending and adjust budget**: Keep a close eye on the team's spending and adjust the budget as needed to prevent similar cost spikes in the future.
+
+Confidence: HIGH
+
+The causal chain of events is clear: the `deploy-loadtest` pipeline created the environment, but the subsequent `destroy-loadtest` events failed, leaving the load-test VMs running and causing a significant increase in costs. The cost data and resource information from the `cost_api_tool` support this conclusion."
+mock_s2_root_cause_001,scenario_2_tagging,tagging_regression_misattribution,tagging_regression_misattribution,True,GENERAL,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main root cause of the unallocated cost increase in Scenario 2 is the incorrect tagging of resources during the `deploy-release-prod` pipeline event on January 14, 2025. Specifically, the resource `res-db-prod` was tagged with `team=legacy`, and the resource `res-api-1` was missing team tags. This led to a sudden increase in unallocated spend from about $10.00/day to $300.00/day after January 15, 2025.
+
+The causal chain of events is as follows:
+
+1. The `deploy-release-prod` pipeline event on January 14, 2025, updated tags incorrectly, setting `team=legacy` on `res-db-prod`.
+2. The resource `res-db-prod` became untracked by the Release Team due to the incorrect tagging.
+3. The resource `res-api-1` was missing team tags, making it untrackable.
+4. As a result, the spend associated with these resources became unallocated, leading to a significant increase in unallocated costs.
+
+The confidence level of this conclusion is HIGH, as evidenced by the data from the cost API tool and pipeline tool.
+
+Remediation steps:
+
+1. Correct the tagging of `res-db-prod` to reflect the correct team ownership.
+2. Add the missing team tags to `res-api-1`.
+3. Verify that the resources are properly tracked and allocated to the Release Team.
+
+By taking these steps, the unallocated cost increase can be resolved, and the resources can be properly accounted for."
+mock_s3_root_cause_001,scenario_3_autoscaler,autoscaler_no_scale_down,autoscaler_no_scale_down,True,GENERAL,pipeline_tool | cost_api_tool,pipeline_tool | cost_api_tool,"The main reason for the Release Team cost spike in Scenario 3 is the autoscaler configuration change made on January 9, 2025. The `update-web-autoscaler` pipeline event successfully deployed a new configuration that scaled out the `web-frontend-asg` and `res-web-frontend` resources, increasing the maximum replicas to 12. This change caused the sustained scale-out of these resources, leading to a significant increase in daily spend from $150.00 to $450.00.
+
+The causal chain of events is as follows:
+
+1. The `update-web-autoscaler` pipeline event was triggered on January 9, 2025, which updated the autoscaler configuration.
+2. The new configuration scaled out the `web-frontend-asg` and `res-web-frontend` resources, increasing their utilisation and cost.
+3. The `web-frontend-asg` and `res-web-frontend` resources remained scaled out, leading to a sustained increase in cost.
+
+The confidence level of this investigation is HIGH, as the data from the cost API tool and pipeline tool clearly indicates that the autoscaler configuration change caused the cost spike.
+
+The remediation steps to address this issue are:
+
+1. Review and adjust the autoscaler configuration to ensure that it is aligned with the team's budget and cost goals.
+2. Implement a scale-down guardrail to prevent similar incidents in the future.
+3. Monitor the cost and utilisation of the `web-frontend-asg` and `res-web-frontend` resources to ensure that they are operating within expected parameters."
+mock_s4_root_cause_001,scenario_4_forgotten_poc,forgotten_poc_environment,forgotten_poc_environment,True,GENERAL,pipeline_tool | cost_api_tool,cost_api_tool,"The main reason for the CloudOps Team cost spike in Scenario 4 is that the POC analytics resources `poc-analytics-vm-1` and `poc-analytics-db` were left active and idle after January 15, 2025, causing a significant increase in daily spend from $200.00 to $500.00. 
+
+The cost data shows that these resources are incurring substantial costs: `poc-analytics-vm-1` is costing $3,600.00 per month with a utilisation of only 0.4%, and `poc-analytics-db` is costing $1,800.00 per month with a utilisation of 1.1%. 
+
+The anomaly was detected on January 15, 2025, and the current spend is $10,800.00, which is 300.0% of the monthly budget of $3,600. The forecast is $12,960.00.
+
+To remediate, it is recommended to terminate the `poc-analytics-vm-1` and `poc-analytics-db` resources to prevent further incurring costs. 
+
+Confidence: HIGH 
+
+Remediation: 
+1. Terminate `poc-analytics-vm-1` and `poc-analytics-db` resources.
+2. Review and adjust the budget and cost governance policies to prevent similar incidents in the future."
+mock_s5_root_cause_001,scenario_5_app_misconfig,application_misconfiguration_over_scaling,application_misconfiguration_over_scaling,True,GENERAL,pipeline_tool | cost_api_tool,cost_api_tool,"The main reason for the Release Team cost spike in Scenario 5 is the misconfiguration of `MAX_WORKERS=500` in the `deploy-release-api` pipeline on January 19, 2025. This caused the `release-api` and `rel-api-pods` resources to scale excessively, leading to a significant increase in daily spend from $150.00 to $600.00.
+
+Key evidence:
+- The `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.
+- The `release-api` service cost $5,400.00/month with 88.0% utilisation.
+- The `rel-api-pods` (k8s-pod-set) cost $6,200.00/month with 2.4% utilisation.
+
+The causal chain:
+1. `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.
+2. This caused `release-api` and `rel-api-pods` to scale excessively.
+3. The scaling led to a significant increase in compute costs.
+
+Confidence: HIGH
+
+Remediation:
+1. Review and adjust the `MAX_WORKERS` configuration in the `deploy-release-api` pipeline to a more appropriate value based on historical demand.
+2. Monitor the `release-api` and `rel-api-pods` resources for utilisation and adjust as necessary to prevent over-scaling."

@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-04-01T13:49:02.422061+00:00",
+  "generated_at": "2026-04-04T08:51:00.971572+00:00",
   "dataset_id": "imrag-mock-root-cause-starter",
   "dataset_version": "0.1.0",
   "dataset_path": "evals/dataset/mock_scenarios_starter.json",
   "assumptions": [
-    "This runner evaluates the canonical deterministic mock root-cause function in app.py for the five numbered scenarios.",
+    "This runner evaluates RCA labels from the current agent-only mock workflow for the five numbered scenarios.",
     "Predicted RCA labels are extracted from final answer text only.",
     "Precision, recall, and F1 are macro-averaged across observed labels."
   ],
