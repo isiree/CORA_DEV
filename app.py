@@ -23,6 +23,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.scenarios import ScenarioRun, build_scenario_run, SCENARIO_IDS
 from src.g import bind_shared_scenario_run, g
+from src.providers.mock_cost_provider import MOCK_TEAMS
 
 ROOT_DIR = Path(__file__).parent.resolve()
 TEMPLATES_DIR = ROOT_DIR / "templates"
@@ -31,6 +32,7 @@ STATIC_DIR = ROOT_DIR / "static"
 _AGENT_LOCK = threading.Lock()
 _AGENT_CONTEXT_LOCK = threading.Lock()
 _AGENT_INSTANCE: Any = None
+_selected_mode: Optional[str] = None
 _current_scenario_run: Optional[ScenarioRun] = None
 _conversation_history: list[dict[str, str]] = []
 
@@ -87,6 +89,12 @@ GENERAL - anything else
 Respond with only the category name.
 No explanation."""
 
+# Set DETERMINISTIC_MODE = True to re-enable hardcoded scenario answers as emergency fallback.
+# This bypasses the agent entirely and should only be used if the agent is producing errors during
+# a live demo. Do not use for thesis evaluation.
+# DETERMINISTIC_MODE is disabled for agentic evaluation. Set to True only as emergency demo fallback.
+DETERMINISTIC_MODE = False
+
 FOLLOWUP_SIGNALS = [
     " too",
     " also",
@@ -114,8 +122,8 @@ FOLLOWUP_SIGNALS = [
 ]
 
 
-def _get_mode() -> str:
-    return "Live" if os.getenv("USE_LIVE_DATA", "false").lower() == "true" else "Mock"
+def _get_mode() -> Optional[str]:
+    return _selected_mode
 
 
 def _reset_providers() -> None:
@@ -155,8 +163,9 @@ def _reset_agent() -> None:
 
 
 def _set_mode(new_mode: str) -> str:
-    global _conversation_history
+    global _conversation_history, _selected_mode
     normalized = "Live" if str(new_mode).lower() == "live" else "Mock"
+    _selected_mode = normalized
     os.environ["USE_LIVE_DATA"] = "true" if normalized == "Live" else "false"
     _reset_runtime_state()
     _reset_agent()
@@ -283,7 +292,7 @@ def _append_conversation_turn(role: str, content: str) -> None:
     if not text:
         return
     _conversation_history.append({"role": role, "content": text})
-    _conversation_history = _conversation_history[-10:]
+    _conversation_history = _conversation_history[-20:]
 
 
 def _set_conversation_history(raw_history: Any) -> None:
@@ -292,14 +301,14 @@ def _set_conversation_history(raw_history: Any) -> None:
         return
 
     normalized: list[dict[str, str]] = []
-    for item in raw_history[-10:]:
+    for item in raw_history[-20:]:
         if not isinstance(item, dict):
             continue
         role = str(item.get("role", "")).strip().lower()
         content = str(item.get("content", "")).strip()
         if role in {"user", "assistant"} and content:
             normalized.append({"role": role, "content": content})
-    _conversation_history = normalized[-10:]
+    _conversation_history = normalized[-20:]
 
 
 def is_followup_question(question: str) -> bool:
@@ -434,6 +443,26 @@ def _scenario_team_data(scenario_run: ScenarioRun, team_id: str) -> Optional[dic
     return next((team for team in scenario_run.cost_data.get("teams", []) if team.get("team_id") == team_id), None)
 
 
+def _primary_team_id(scenario_run: ScenarioRun) -> str:
+    scenario_id = scenario_run.scenario_id
+    if scenario_id in {"scenario_2_tagging", "scenario_3_autoscaler", "scenario_5_app_misconfig", "scenario_legacy_mock"}:
+        return "release-team"
+    if scenario_id == "scenario_4_forgotten_poc":
+        return "cloudops-team"
+
+    best_team_id = "ci-team"
+    best_delta = float("-inf")
+    for team in scenario_run.cost_data.get("teams", []):
+        team_id = team.get("team_id")
+        if not team_id:
+            continue
+        delta = _scenario_team_spike_stats(scenario_run, team_id)["delta"]
+        if delta > best_delta:
+            best_delta = delta
+            best_team_id = team_id
+    return best_team_id
+
+
 def _scenario_team_spike_stats(scenario_run: ScenarioRun, team_id: str) -> dict[str, float]:
     team = _scenario_team_data(scenario_run, team_id) or {}
     daily_costs = team.get("daily_costs", [])
@@ -489,23 +518,7 @@ def _scenario_failed_cleanup_events(scenario_run: ScenarioRun, team_id: str) -> 
 
 
 def get_primary_team(scenario_run: ScenarioRun) -> str:
-    scenario_id = scenario_run.scenario_id
-    if scenario_id == "scenario_2_tagging":
-        return "Release Team"
-    if scenario_id == "scenario_legacy_mock":
-        return "Release Team"
-
-    best_team_id = None
-    best_delta = float("-inf")
-    for team in scenario_run.cost_data.get("teams", []):
-        team_id = team.get("team_id")
-        if not team_id:
-            continue
-        delta = _scenario_team_spike_stats(scenario_run, team_id)["delta"]
-        if delta > best_delta:
-            best_delta = delta
-            best_team_id = team_id
-    return _team_label(best_team_id or "ci-team")
+    return _team_label(_primary_team_id(scenario_run))
 
 
 def get_anomaly_summary(scenario_run: ScenarioRun) -> str:
@@ -630,6 +643,146 @@ def _mock_query_result(answer: str, tools_used: list[str], sources: list[str], s
         "steps": steps,
         "sources": sources,
     }
+
+
+def _severity_from_budget_pct(budget_pct: float) -> str:
+    if budget_pct >= 175:
+        return "high"
+    if budget_pct >= 110:
+        return "medium"
+    return "low"
+
+
+def _scenario_title(scenario_id: str) -> str:
+    return {
+        "scenario_1_vm_destroy": "VM destroy failure detected",
+        "scenario_2_tagging": "Tagging anomaly detected",
+        "scenario_3_autoscaler": "Autoscaler anomaly detected",
+        "scenario_4_forgotten_poc": "Forgotten POC resources detected",
+        "scenario_5_app_misconfig": "Application scaling misconfiguration",
+        "scenario_legacy_mock": "Mock cost anomaly detected",
+    }.get(scenario_id, "Cost anomaly detected")
+
+
+def _tool_activity_detail(tool_name: str, team_label: str, step_query: str = "") -> str:
+    detail = {
+        "cost_api_tool": f"Checked spend, budget, and resource signals for {team_label}",
+        "pipeline_tool": f"Reviewed deployment and job history for {team_label}",
+        "historical_tool": "Reviewed governance and policy context",
+    }.get(tool_name, "Tool executed")
+    query_text = str(step_query or "").strip()
+    if query_text:
+        query_text = query_text[:90] + ("..." if len(query_text) > 90 else "")
+        return f"{detail}: {query_text}"
+    return detail
+
+
+def _build_tool_activity(steps: list[dict[str, Any]], tools_used: list[str], team_label: str) -> list[dict[str, str]]:
+    activity: list[dict[str, str]] = []
+    seen = set()
+
+    for step in steps:
+        tool_name = str(step.get("tool", "")).strip()
+        if not tool_name or tool_name in seen:
+            continue
+        seen.add(tool_name)
+        activity.append(
+            {
+                "t": "now",
+                "n": tool_name,
+                "d": _tool_activity_detail(tool_name, team_label, str(step.get("query", ""))),
+            }
+        )
+
+    for tool_name in tools_used:
+        if tool_name in seen:
+            continue
+        seen.add(tool_name)
+        activity.append({"t": "now", "n": tool_name, "d": _tool_activity_detail(tool_name, team_label)})
+
+    return activity
+
+
+def _build_mock_anomaly_context(
+    scenario_run: ScenarioRun,
+    question: str,
+    team_filter: str,
+    tools_used: list[str],
+    steps: list[dict[str, Any]],
+) -> dict[str, Any]:
+    selected_team_id = _extract_team_from_query(question, team_filter) or _primary_team_id(scenario_run)
+    team_id = selected_team_id if _scenario_team_data(scenario_run, selected_team_id) else _primary_team_id(scenario_run)
+    team = _scenario_team_data(scenario_run, team_id) or {}
+    spend_stats = _scenario_team_spike_stats(scenario_run, team_id)
+    budget = float(MOCK_TEAMS.get(team_id, {}).get("budget_monthly", 0.0))
+    budget_pct = (spend_stats["total"] / budget) * 100 if budget else 0.0
+    top_resources = team.get("top_resources", [])[:3]
+
+    impact_label = _format_currency(spend_stats["total"])
+    impact_sub = f"{budget_pct - 100:.1f}% over budget" if budget and budget_pct > 100 else f"{budget_pct:.1f}% of budget"
+    cause = str(team.get("anomaly_description", "")).strip() or get_pipeline_summary(scenario_run)
+
+    return {
+        "title": _scenario_title(scenario_run.scenario_id),
+        "sev": _severity_from_budget_pct(budget_pct),
+        "impact": impact_label,
+        "pct": impact_sub,
+        "days": "Last 30d",
+        "since": _format_date(str(team.get("cost_spike_date", ""))),
+        "team": _team_label(team_id),
+        "cause": cause,
+        "tools": _build_tool_activity(steps, tools_used, _team_label(team_id)),
+        "res": [
+            {
+                "n": resource.get("name", "unknown"),
+                "c": f"{_format_currency(float(resource.get('cost', 0.0)))}/mo",
+            }
+            for resource in top_resources
+        ],
+    }
+
+
+def _build_live_anomaly_context(
+    question: str,
+    team_filter: str,
+    answer: str,
+    tools_used: list[str],
+    steps: list[dict[str, Any]],
+) -> dict[str, Any]:
+    team_id = _extract_team_from_query(question, team_filter)
+    team_label = _team_label(team_id) if team_id else "Multiple teams"
+    first_sentence = str(answer or "").strip().split(".")[0].strip()
+    if first_sentence and not first_sentence.endswith("."):
+        first_sentence += "."
+
+    return {
+        "title": "Investigation updated",
+        "sev": "medium" if tools_used else "low",
+        "impact": "See answer",
+        "pct": f"{len(tools_used)} tool(s) used" if tools_used else "No tools used",
+        "days": "Current query",
+        "since": "",
+        "team": team_label,
+        "cause": first_sentence or "Review the answer for the latest investigation findings.",
+        "tools": _build_tool_activity(steps, tools_used, team_label),
+        "res": [],
+    }
+
+
+def _build_anomaly_context(
+    *,
+    question: str,
+    team_filter: str,
+    answer: str,
+    tools_used: list[str],
+    steps: list[dict[str, Any]],
+    scenario_run: Optional[ScenarioRun],
+) -> Optional[dict[str, Any]]:
+    if _get_mode() == "Mock" and scenario_run is not None:
+        return _build_mock_anomaly_context(scenario_run, question, team_filter, tools_used, steps)
+    if _get_mode() == "Live":
+        return _build_live_anomaly_context(question, team_filter, answer, tools_used, steps)
+    return None
 
 
 def _build_mock_responsibility_result(scenario_run: ScenarioRun) -> dict[str, Any]:
@@ -1032,6 +1185,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "mode": _get_mode(),
+                    "scenario_id": _current_scenario_run.scenario_id if _current_scenario_run else None,
                     "team_options": TEAM_OPTIONS,
                     "example_queries": EXAMPLE_QUERIES,
                     "knowledge_base": {
@@ -1064,17 +1218,25 @@ class CORARequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def do_POST(self) -> None:
-        global _current_scenario_run
+        global _current_scenario_run, _conversation_history
 
         route = urlparse(self.path).path
         payload = self._read_json_body()
 
         if route == "/api/config/mode":
             mode = _set_mode((payload or {}).get("mode", "Mock"))
+            _conversation_history = []
             self._send_json(HTTPStatus.OK, {"mode": mode})
             return
 
         if route == "/api/config/scenario":
+            if _get_mode() != "Mock":
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "Switch to Mock mode before selecting a scenario."},
+                )
+                return
+
             payload = payload or {}
             scenario_id = payload.get("scenario_id")
             if not scenario_id or scenario_id not in SCENARIO_IDS:
@@ -1082,8 +1244,8 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                 return
             
             _current_scenario_run = build_scenario_run(scenario_id)
+            _conversation_history = []
             _reset_runtime_state()
-            _reset_conversation_history()
             self._send_json(HTTPStatus.OK, {"status": "ok", "scenario_id": scenario_id})
             return
 
@@ -1093,6 +1255,7 @@ class CORARequestHandler(BaseHTTPRequestHandler):
             team_filter = str(payload.get("team_filter", "All Teams"))
             scenario_id = str(payload.get("scenario_id", "")).strip()
             raw_chat_history = payload.get("chat_history")
+            question = f"For {team_filter}: {prompt}" if team_filter != "All Teams" else prompt
             detected_intent = "GENERAL"
             
             if _get_mode() == "Mock":
@@ -1107,52 +1270,91 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Prompt is required."})
                 return
 
+            if _get_mode() not in {"Mock", "Live"}:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "Choose Live or Mock mode in the UI before starting an investigation."},
+                )
+                return
+
+            if _get_mode() != "Mock" and scenario_id:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": (
+                            "Backend is in Live mode while a mock scenario was supplied. "
+                            "Switch to Mock mode before running scenario investigations."
+                        )
+                    },
+                )
+                return
+
             if _get_mode() == "Mock" and _current_scenario_run is None:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Select a mock scenario before starting an investigation."})
                 return
 
-            full_query = f"For {team_filter}: {prompt}" if team_filter != "All Teams" else prompt
             if isinstance(raw_chat_history, list) and len(raw_chat_history) == 0 and _conversation_history:
                 _reset_conversation_history()
             elif isinstance(raw_chat_history, list) and raw_chat_history:
                 _set_conversation_history(raw_chat_history)
 
-            server_chat_history = _deserialize_chat_history(_conversation_history)
-            _append_conversation_turn("user", full_query)
             followup_question = is_followup_question(prompt)
 
             try:
-                direct_result = None
-                if _get_mode() == "Mock" and not followup_question:
+                if DETERMINISTIC_MODE and _get_mode() == "Mock" and not followup_question:
                     detected_intent = _classify_query_intent(prompt)
-                    direct_result = _try_handle_mock_scenario_query(prompt, team_filter, _current_scenario_run, detected_intent)
-
-                if direct_result is not None:
-                    _append_conversation_turn("assistant", direct_result.get("answer", ""))
-                    self._send_json(
-                        HTTPStatus.OK,
-                        {
-                            "full_query": full_query,
-                            "answer": direct_result.get("answer", ""),
-                            "tools_used": direct_result.get("tools_used", []),
-                            "steps": direct_result.get("steps", []),
-                            "sources": direct_result.get("sources", []),
-                            "detected_intent": detected_intent,
-                        },
+                    deterministic_result = _try_handle_mock_scenario_query(
+                        prompt,
+                        team_filter,
+                        _current_scenario_run,
+                        detected_intent,
                     )
-                    return
+                    if deterministic_result:
+                        _conversation_history.append({"role": "user", "content": question})
+                        _conversation_history.append(
+                            {"role": "assistant", "content": deterministic_result.get("answer", "")}
+                        )
+                        if len(_conversation_history) > 20:
+                            _conversation_history = _conversation_history[-20:]
+                        anomaly_context = _build_anomaly_context(
+                            question=question,
+                            team_filter=team_filter,
+                            answer=deterministic_result.get("answer", ""),
+                            tools_used=deterministic_result.get("tools_used", []),
+                            steps=deterministic_result.get("steps", []),
+                            scenario_run=_current_scenario_run,
+                        )
+                        self._send_json(
+                            HTTPStatus.OK,
+                            {
+                                "full_query": question,
+                                "answer": deterministic_result.get("answer", ""),
+                                "tools_used": deterministic_result.get("tools_used", []),
+                                "steps": deterministic_result.get("steps", []),
+                                "sources": deterministic_result.get("sources", []),
+                                "detected_intent": detected_intent,
+                                "anomaly_context": anomaly_context,
+                            },
+                        )
+                        return
 
+                server_chat_history = _deserialize_chat_history(_conversation_history)
+                scenario_context = ""
+                if _get_mode() == "Mock" and _current_scenario_run:
+                    scenario_context = _build_scenario_context(_current_scenario_run)
                 agent = _get_agent()
-                scenario_context = _build_scenario_context(_current_scenario_run) if _get_mode() == "Mock" else ""
                 with _AGENT_CONTEXT_LOCK:
                     with bind_shared_scenario_run(g.scenario_run):
-                        result = _invoke_agent_query(
-                            agent,
-                            full_query,
-                            chat_history=server_chat_history or None,
+                        result = agent.query(
+                            question,
+                            chat_history=server_chat_history,
                             scenario_context=scenario_context,
                         )
-                _append_conversation_turn("assistant", result.get("answer", ""))
+
+                _conversation_history.append({"role": "user", "content": question})
+                _conversation_history.append({"role": "assistant", "content": result.get("answer", "")})
+                if len(_conversation_history) > 20:
+                    _conversation_history = _conversation_history[-20:]
                 steps = _serialize_steps(result.get("intermediate_steps", []))
                 source_set = []
                 seen_sources = set()
@@ -1165,15 +1367,24 @@ class CORARequestHandler(BaseHTTPRequestHandler):
                         if s not in seen_sources:
                             seen_sources.add(s)
                             source_set.append(s)
+                anomaly_context = _build_anomaly_context(
+                    question=question,
+                    team_filter=team_filter,
+                    answer=result.get("answer", ""),
+                    tools_used=result.get("tools_used", []),
+                    steps=steps,
+                    scenario_run=_current_scenario_run,
+                )
                 self._send_json(
                     HTTPStatus.OK,
                     {
-                        "full_query": full_query,
+                        "full_query": question,
                         "answer": result.get("answer", ""),
                         "tools_used": result.get("tools_used", []),
                         "steps": steps,
                         "sources": source_set,
                         "detected_intent": detected_intent,
+                        "anomaly_context": anomaly_context,
                     },
                 )
             except Exception as exc:

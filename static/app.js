@@ -61,6 +61,7 @@ function Rail({ dark, toggleTheme, activeNav, setActiveNav, settingsOpen, setSet
 }
 
 function ConfigPanel({ mode, setMode, scenario, setScenario, teamFilter, setTeamFilter, onNewInvestigation }) {
+  const configReady = mode === 'Mock' || mode === 'Live';
   const isMock = mode === 'Mock';
 
   const handleModeChange = async (newMode) => {
@@ -120,7 +121,7 @@ function ConfigPanel({ mode, setMode, scenario, setScenario, teamFilter, setTeam
         <div className="cfg-sec">
           <div className="cfg-lbl">Data source</div>
           <div className="mode-row">
-            <button className={`mode-btn ${!isMock ? 'on' : ''}`} onClick={() => handleModeChange('Live')}>
+            <button className={`mode-btn ${configReady && !isMock ? 'on' : ''}`} onClick={() => handleModeChange('Live')}>
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>Live
             </button>
             <button className={`mode-btn ${isMock ? 'on' : ''}`} onClick={() => handleModeChange('Mock')}>
@@ -154,10 +155,14 @@ function ConfigPanel({ mode, setMode, scenario, setScenario, teamFilter, setTeam
           <div className="status-card">
             <div className="st-row">
               <span className="st-dot"></span>
-              <span className="st-name">{isMock ? 'Mock mode' : 'Live mode — Azure connected'}</span>
+              <span className="st-name">
+                {!configReady ? 'Choose a mode to begin' : (isMock ? 'Mock mode' : 'Live mode — Azure connected')}
+              </span>
             </div>
             <div className="st-sub">
-              {isMock ? `${SCENARIOS[scenario] || scenario} active (${Object.keys(SCENARIOS).length} total)` : 'GitLab + Cost Management API'}
+              {!configReady
+                ? 'Select Live or Mock from the toggle above'
+                : (isMock ? `${SCENARIOS[scenario] || scenario} active (${Object.keys(SCENARIOS).length} total)` : 'GitLab + Cost Management API')}
             </div>
           </div>
         </div>
@@ -685,6 +690,7 @@ function SettingsPanel({ mode }) {
 }
 
 function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCtxOpen, view, investigations, onDeleteInvestigation, onClearHistory, onExportInvestigation, setExpandedMsg }) {
+  const configReady = mode === 'Mock' || mode === 'Live';
   const isMock = mode === 'Mock';
   const [inp, setInp] = useState("");
   const chatRef = useRef(null);
@@ -708,8 +714,8 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
       <header id="topbar">
         <span className="tb-title">{toTitleCase('Cloud cost investigation')}</span>
         <span className="tb-div"></span>
-        <span className={`topbar-mode-pill ${isMock ? 'mock' : 'live'}`}>{isMock ? 'Mock' : 'Live'}</span>
-        <span className="topbar-scenario-label">{isMock ? scenarioLabel : 'Azure + GitLab'}</span>
+        <span className={`topbar-mode-pill ${isMock ? 'mock' : 'live'}`}>{configReady ? (isMock ? 'Mock' : 'Live') : 'Select mode'}</span>
+        <span className="topbar-scenario-label">{configReady ? (isMock ? scenarioLabel : 'Azure + GitLab') : 'Choose Live or Mock to begin'}</span>
         <div className="tb-right">
           <span className="tb-conn"><span className="conn-dot"></span>Connected</span>
           <button className="tb-icon-btn" onClick={() => setCtxOpen((prev) => !prev)} title="Toggle context panel">
@@ -720,7 +726,7 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
         </div>
       </header>
 
-      {isMock && (
+      {configReady && isMock && (
         <div id="mock-banner">
           <span className="bnr-pill">MOCK</span>
           <span className="bnr-text">{toTitleCase(SCENARIOS[scenario] || scenario)}</span>
@@ -764,9 +770,10 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
               <div className="inp-wrap">
                 <input
                   type="text"
-                  placeholder="Ask CORA about your cloud costs..."
+                  placeholder={configReady ? "Ask CORA about your cloud costs..." : "Waiting for backend configuration..."}
                   value={inp}
                   onChange={(e) => setInp(e.target.value)}
+                  disabled={!configReady}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -776,7 +783,7 @@ function ChatMain({ mode, scenario, messages, loading, onSendMsg, ctxOpen, setCt
                 />
                 <span className="inp-hint">Enter ↵ · Shift+Enter for new line</span>
               </div>
-              <button className="send-btn" onClick={handleSubmit}>
+              <button className="send-btn" onClick={handleSubmit} disabled={!configReady}>
                 <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
               </button>
             </div>
@@ -827,6 +834,9 @@ function ContextPanel({ open, contextData }) {
                       <div className="metric-sub">{contextData.since ? `since ${contextData.since}` : '-'}</div>
                     </div>
                   </div>
+                  {contextData.cause && (
+                    <div className="anomaly-cause">{contextData.cause}</div>
+                  )}
                 </div>
               )}
               {contextData.tools && contextData.tools.length > 0 && (
@@ -873,7 +883,7 @@ function ContextPanel({ open, contextData }) {
 function CoraApp() {
   const [dark, setDark] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [mode, setMode] = useState('Mock');
+  const [mode, setMode] = useState(null);
   const [scenario, setScenario] = useState('scenario_1_vm_destroy');
   const [teamFilter, setTeamFilter] = useState('');
   const [messages, setMessages] = useState([]);
@@ -901,6 +911,7 @@ function CoraApp() {
         const config = await configRes.json();
         const tools = await toolsRes.json();
         if (config.mode) setMode(config.mode);
+        if (config.scenario_id) setScenario(config.scenario_id);
         // We can keep the tools in state or just use them if needed. 
         // The API provides available tools, which informs tool chips rendering.
       } catch (e) {
@@ -946,7 +957,7 @@ function CoraApp() {
   };
 
   const handleSendMsg = async (query) => {
-    if (!query.trim()) return;
+    if (!query.trim() || (mode !== 'Mock' && mode !== 'Live')) return;
 
     const formattedQuery = teamFilter ? `For ${teamFilter}: ${query.trim()}` : query.trim();
     const chatHistory = messages.map((m) => ({
@@ -964,7 +975,7 @@ function CoraApp() {
         body: JSON.stringify({
           prompt: query.trim(),
           team_filter: teamFilter,
-          scenario_id: scenario,
+          scenario_id: mode === 'Mock' ? scenario : '',
           chat_history: chatHistory
         })
       });

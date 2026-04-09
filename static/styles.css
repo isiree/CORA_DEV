@@ -569,6 +569,11 @@ body.dark .cfg-lbl {
   position: relative;
 }
 
+.msg-agent {
+  width: min(100%, 860px);
+  min-width: 0;
+}
+
 .msg-expand-btn {
   position: absolute;
   top: 8px;
@@ -1051,7 +1056,8 @@ body.dark .bnr-text {
   padding: 10px 13px;
   border-radius: var(--r-lg);
   font-size: var(--text-base);
-  line-height: 1.65
+  line-height: 1.65;
+  box-sizing: border-box;
 }
 
 .mbbl.usr {
@@ -1062,6 +1068,8 @@ body.dark .bnr-text {
 }
 
 .mbbl.agt {
+  width: 100%;
+  max-width: none;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-left: 2px solid var(--t500);
@@ -1988,6 +1996,13 @@ body.dark .sev-badge.medium {
 .anomaly-team {
   font-size: var(--text-sm);
   color: var(--text-2)
+}
+
+.anomaly-cause {
+  margin-top: 10px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.45;
 }
 
 /* Metrics: amber accent */
