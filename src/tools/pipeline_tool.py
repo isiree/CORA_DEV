@@ -195,6 +195,8 @@ Provide analysis focused on cost impact:""")
     
     def _get_mode_indicator(self) -> str:
         """Get the mode indicator string for output."""
+        if getattr(g, "scenario_run", None) is not None:
+            return "MOCK 🟡"
         if self._is_live_mode():
             return "LIVE 🟢"
         return "MOCK 🟡"
@@ -276,6 +278,11 @@ Provide analysis focused on cost impact:""")
             # Extract from scenario
             pipes = scenario_run.pipeline_data.get("pipelines", [])
             team_pipes = [p for p in pipes if p.get("team_id") == normalized_name]
+            display_names = {
+                "release-team": "Release Team",
+                "ci-team": "CI Team",
+                "cloudops-team": "CloudOps Team",
+            }
             
             # Simple stats
             failed = len([p for p in team_pipes if p.get("status") == "failed"])
@@ -284,10 +291,12 @@ Provide analysis focused on cost impact:""")
             
             return {
                 "success": True,
-                "team": team_name.title(),
+                "team": display_names.get(normalized_name, normalized_name.replace("-", " ").title()),
                 "project": f"{normalized_name}-infra",
                 "period": f"Last {days} days",
                 "retrieved_at": datetime.now().isoformat(),
+                "scenario_id": scenario_run.scenario_id,
+                "data_source": f"mock ({scenario_run.scenario_id})",
                 "mode": f"mock ({scenario_run.scenario_id})",
                 "statistics": {
                     "total_deployments": total,
@@ -319,6 +328,18 @@ Provide analysis focused on cost impact:""")
         """
         scenario_run = getattr(g, "scenario_run", None)
         scenario_id = getattr(scenario_run, "scenario_id", "default")
+
+        if scenario_run is not None and getattr(scenario_run, "pipeline_data", None):
+            cache_key = f"scenario_{scenario_id}_{team_name}_{days}"
+            cached = self.cache.get("pipeline", team_name=cache_key)
+            if cached:
+                return cached
+
+            result = self._get_mock_data(team_name, days)
+            result["mode"] = "MOCK 🟡"
+            if result.get("success"):
+                self.cache.set("pipeline", result, team_name=cache_key)
+            return result
 
         if _is_mock_mode():
             cache_key = f"mock_{scenario_id}_{team_name}_{days}"
@@ -377,9 +398,16 @@ Provide analysis focused on cost impact:""")
             commit_msg = p.get("commit_message", p.get("commit_title", p.get("name", "No message")))
             status = p.get("status", "unknown")
             duration = p.get("duration_seconds", p.get("duration", 0))
+            jobs = []
+            for job in p.get("jobs", []):
+                job_summary = f"{job.get('name', 'unknown')} [{job.get('status', 'unknown')}]"
+                if job.get("log_excerpt"):
+                    job_summary += f" - {job['log_excerpt']}"
+                jobs.append(job_summary)
+            jobs_text = f" Jobs: {'; '.join(jobs)}" if jobs else ""
             pipeline_summary.append(
                 f"- Pipeline #{pipeline_id} ({created_at}): {commit_msg} "
-                f"[Status: {status}, Duration: {duration}s]"
+                f"[Status: {status}, Duration: {duration}s].{jobs_text}"
             )
         
         # Prepare infrastructure changes
@@ -411,6 +439,8 @@ Provide analysis focused on cost impact:""")
             "team": deployment_data["team"],
             "period": deployment_data["period"],
             "mode": deployment_data.get("mode", self._get_mode_indicator()),
+            "scenario_id": deployment_data.get("scenario_id"),
+            "data_source": deployment_data.get("data_source"),
             "statistics": deployment_data["statistics"],
             "estimated_infra_cost_change": f"${total_infra_cost}/month",
             "analysis": analysis.content
@@ -450,11 +480,11 @@ def pipeline_tool(query: str) -> str:
     tool_instance = get_pipeline_tool()
     query_lower = query.lower()
     
-    # Get mode indicator for output
-    mode_indicator = tool_instance._get_mode_indicator()
-    
     # Determine analysis type
-    analyze_cost = "cost" in query_lower or "impact" in query_lower or "analyze" in query_lower or "why" in query_lower
+    analyze_cost = any(
+        keyword in query_lower
+        for keyword in ("cost", "impact", "analyze", "why", "cause", "caused", "root cause", "spike")
+    )
     
     # Find team in query
     for team_key in MOCK_PIPELINE_DATA.keys():
@@ -464,10 +494,17 @@ def pipeline_tool(query: str) -> str:
                 result = tool_instance.analyze_cost_impact(team_key)
                 if not result.get("success"):
                     return result.get("error", "Unknown error occurred")
+                mode_indicator = result.get("mode", tool_instance._get_mode_indicator())
                 
                 output = [
                     f"🔧 PIPELINE COST IMPACT ANALYSIS: {result['team']} ({mode_indicator})",
                     f"Period: {result['period']}",
+                ]
+                if result.get("scenario_id"):
+                    output.append(f"Scenario: {result['scenario_id']}")
+                if result.get("data_source"):
+                    output.append(f"Source: {result['data_source']}")
+                output.extend([
                     "",
                     "📈 DEPLOYMENT STATISTICS:",
                     f"  Total Deployments: {result['statistics']['total_deployments']}",
@@ -479,28 +516,44 @@ def pipeline_tool(query: str) -> str:
                     "",
                     "📋 ANALYSIS:",
                     result["analysis"]
-                ]
+                ])
                 return "\n".join(output)
             else:
                 result = tool_instance.get_deployment_history(team_key)
                 if not result.get("success"):
                     return result.get("error", "Unknown error occurred")
+                mode_indicator = result.get("mode", tool_instance._get_mode_indicator())
                 
                 output = [
                     f"🚀 DEPLOYMENT HISTORY: {result['team']} ({mode_indicator})",
                     f"Project: {result['project']}",
                     f"Period: {result['period']}",
+                ]
+                if result.get("scenario_id"):
+                    output.append(f"Scenario: {result['scenario_id']}")
+                if result.get("data_source"):
+                    output.append(f"Source: {result['data_source']}")
+                output.extend([
                     "",
                     "📈 STATISTICS:",
                     f"  Total Deployments: {result['statistics']['total_deployments']}",
+                    f"  Failed Deployments: {result['statistics']['failed_deployments']}",
                     f"  Success Rate: {result['statistics']['success_rate']}",
                     "",
                     "🔄 RECENT PIPELINES:"
-                ]
+                ])
                 
                 for p in result.get("recent_pipelines", [])[:3]:
                     commit_msg = p.get('commit_message', p.get('commit_title', 'No message'))
-                    output.append(f"  #{p['id']} ({str(p['created_at'])[:10]}): {commit_msg[:50]}...")
+                    pipeline_id = p.get("id", p.get("pipeline_id", "unknown"))
+                    started_at = str(p.get("created_at", p.get("started_at", "unknown")))[:19]
+                    output.append(f"  #{pipeline_id} {p.get('name', commit_msg)} ({started_at}) [{p.get('status', 'unknown')}]")
+                    output.append(f"    Summary: {commit_msg[:120]}")
+                    for job in p.get("jobs", [])[:4]:
+                        job_line = f"    Job: {job.get('name', 'unknown')} [{job.get('status', 'unknown')}]"
+                        if job.get("log_excerpt"):
+                            job_line += f" - {job['log_excerpt']}"
+                        output.append(job_line)
                 
                 if result.get("infrastructure_changes"):
                     output.append("")
@@ -511,4 +564,5 @@ def pipeline_tool(query: str) -> str:
                 return "\n".join(output)
     
     # If no specific team found, provide helpful message with mode indicator
+    mode_indicator = tool_instance._get_mode_indicator()
     return f"📡 Pipeline Tool ({mode_indicator})\n\nPlease specify a team name (Release Team, CI Team, or CloudOps Team) to get pipeline data."

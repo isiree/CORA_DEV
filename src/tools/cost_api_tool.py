@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from ..utils.cache_manager import get_cache
 from ..providers import get_cost_provider, is_live_mode, is_azure_live_mode
+from ..providers.mock_cost_provider import MockCostDataProvider
 from ..g import g
 
 load_dotenv()
@@ -33,6 +34,12 @@ class CostAPITool:
     @property
     def provider(self):
         """Lazy load the provider."""
+        if getattr(g, "scenario_run", None) is not None:
+            # An active mock scenario must always use the scenario-backed mock provider,
+            # even if environment variables drift toward live mode.
+            if self._provider is None or not isinstance(self._provider, MockCostDataProvider):
+                self._provider = MockCostDataProvider()
+            return self._provider
         if self._provider is None:
             self._provider = get_cost_provider()
         return self._provider
@@ -199,15 +206,28 @@ def _format_resources_response(result: dict, resource_type: str = None) -> str:
         output.append(f"Resource Group: {result['resource_group']}")
         output.append(f"Total: {result['total_resources']} resources")
         output.append("=" * 40)
-        
-        for rtype, resources in result["grouped"].items():
-            output.append(f"\n  {rtype}:")
-            for r in resources:
-                if isinstance(r, dict):
-                    output.append(f"    • {r['name']} ({r.get('location', 'N/A')})")
-                else:
-                    output.append(f"    • {r}")
-    
+
+        if result.get("resources"):
+            for resource in result["resources"]:
+                utilisation = resource.get("utilisation")
+                utilisation_text = f", Utilisation: {utilisation:.1f}%" if isinstance(utilisation, (int, float)) else ""
+                output.append(
+                    f"  • {resource['name']} ({resource['type']}) - ${resource['monthly_cost']:,.2f}/month"
+                    f"{utilisation_text}, Status: {resource['status']}"
+                )
+                if resource.get("metrics"):
+                    output.append(f"    Metrics: {resource['metrics']}")
+                if resource.get("reason_orphaned"):
+                    output.append(f"    Orphaned: {resource['reason_orphaned']}")
+        else:
+            for rtype, resources in result["grouped"].items():
+                output.append(f"\n  {rtype}:")
+                for r in resources:
+                    if isinstance(r, dict):
+                        output.append(f"    • {r['name']} ({r.get('location', 'N/A')})")
+                    else:
+                        output.append(f"    • {r}")
+
     elif "by_team" in result:
         # All resources grouped by team
         output.append(f"📦 ALL RESOURCES")
@@ -349,6 +369,24 @@ def cost_api_tool(query: str) -> str:
         output.append("⚠️ ANOMALIES:")
         for anomaly in result["anomalies"]:
             output.append(f"  - {anomaly}")
+
+        if result.get("anomaly_detected"):
+            output.append("")
+            output.append("🔎 SCENARIO ANOMALY:")
+            output.append(f"  Detected: {result['anomaly_detected']}")
+            if result.get("cost_spike_date"):
+                output.append(f"  Spike Date: {result['cost_spike_date']}")
+            if result.get("anomaly_description"):
+                output.append(f"  Description: {result['anomaly_description']}")
+
+        if result.get("top_resources"):
+            output.append("")
+            output.append("🔥 TOP RESOURCES:")
+            for resource in result["top_resources"]:
+                output.append(
+                    f"  - {resource['name']} ({resource['type']}): "
+                    f"${float(resource['cost']):,.2f}/month, utilisation {float(resource['utilisation']):.1f}%"
+                )
         
         return "\n".join(output)
     

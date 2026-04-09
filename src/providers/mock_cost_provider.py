@@ -237,6 +237,19 @@ class MockCostDataProvider(CostDataProvider):
         profile = self._get_team_profile(team_id)
         return float(profile.get("budget_monthly", 2400.0))
 
+    def _get_resource_monthly_cost(self, resource: Dict[str, Any]) -> float:
+        if "monthly_cost" in resource:
+            return float(resource.get("monthly_cost", 0.0))
+        daily_cost = resource.get("daily_cost", [])
+        return sum(float(c.get("cost", 0)) for c in daily_cost)
+
+    def _get_resource_utilisation(self, resource: Dict[str, Any]) -> Optional[float]:
+        if "utilisation" in resource:
+            return float(resource.get("utilisation", 0.0))
+        if "utilization" in resource:
+            return float(resource.get("utilization", 0.0))
+        return None
+
     def _build_scenario_cost_summary(self, team_data: Dict[str, Any], days: int = 30) -> Dict[str, Any]:
         normalized = team_data["team_id"]
         daily_costs = team_data.get("daily_costs", [])
@@ -275,6 +288,10 @@ class MockCostDataProvider(CostDataProvider):
             "baseline_daily_avg": baseline_avg,
             "recent_daily_avg": recent_avg,
             "daily_spike_delta": spike_delta,
+            "anomaly_detected": bool(team_data.get("anomaly_detected", spike_delta > 0)),
+            "anomaly_description": team_data.get("anomaly_description", ""),
+            "cost_spike_date": team_data.get("cost_spike_date", ""),
+            "top_resources": copy.deepcopy(team_data.get("top_resources", [])),
         }
 
     def _build_resource_profiles(self, scenario_run: Optional[Any]) -> Dict[str, Dict[str, Any]]:
@@ -286,13 +303,20 @@ class MockCostDataProvider(CostDataProvider):
             team_id = team_data.get("team_id", "")
             profile = self._get_team_profile(team_id)
             resources = team_data.get("resources", [])
+            idle_resources = []
+            orphaned_resources = []
+            cpu_values: List[float] = []
 
             storage_accounts = []
             container_instances = []
             for resource in resources:
                 normalized_type = str(resource.get("type", "")).lower()
+                monthly_cost = self._get_resource_monthly_cost(resource)
+                utilisation = self._get_resource_utilisation(resource)
+                status = str(resource.get("status", "active")).lower()
+                display_name = resource.get("name", resource.get("resource_id", "unknown"))
                 entry = {
-                    "name": resource.get("name", resource.get("resource_id", "unknown")),
+                    "name": display_name,
                     "location": resource.get("region", "unknown"),
                     "tags": resource.get("tags", {}),
                 }
@@ -300,17 +324,43 @@ class MockCostDataProvider(CostDataProvider):
                     storage_accounts.append(entry)
                 if "container" in normalized_type:
                     container_instances.append(entry)
+                if utilisation is not None:
+                    cpu_values.append(utilisation)
+
+                idle_entry = {
+                    "resource_id": display_name,
+                    "resource_type": resource.get("type", "unknown"),
+                    "team": team_id,
+                    "monthly_cost": monthly_cost,
+                    "days_idle": int(resource.get("days_idle", 0)),
+                    "region": resource.get("region", "unknown"),
+                    "utilisation": utilisation,
+                }
+                if status == "idle" or (utilisation is not None and utilisation <= 5.0):
+                    idle_resources.append(idle_entry)
+                if status == "orphaned":
+                    orphaned_resources.append(
+                        {
+                            **idle_entry,
+                            "reason_orphaned": resource.get(
+                                "reason_orphaned",
+                                "Scenario resource is marked orphaned.",
+                            ),
+                        }
+                    )
+
+            avg_cpu = sum(cpu_values) / len(cpu_values) if cpu_values else 0.0
 
             profiles[team_id] = {
                 "team_name": profile.get("team_name", team_id.replace("-", " ").title()),
                 "resource_group": profile.get("resource_group", f"rg-{team_id}"),
                 "scenario_resources": resources,
-                "idle_resources": [],
-                "orphaned_resources": [],
+                "idle_resources": idle_resources,
+                "orphaned_resources": orphaned_resources,
                 "resource_utilization": {
-                    "average_cpu_percent": 0.0,
-                    "average_memory_percent": 0.0,
-                    "underutilized_count": 0,
+                    "average_cpu_percent": round(avg_cpu, 1),
+                    "average_memory_percent": round(avg_cpu * 0.9, 1) if avg_cpu else 0.0,
+                    "underutilized_count": len(idle_resources),
                 },
                 "storage_accounts": storage_accounts,
                 "container_instances": container_instances,
@@ -319,21 +369,27 @@ class MockCostDataProvider(CostDataProvider):
 
     def _compose_resource_rows(self, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
+        seen_names = set()
         for item in profile.get("scenario_resources", []):
-            daily_cost = item.get("daily_cost", [])
-            monthly_cost = sum(float(c.get("cost", 0)) for c in daily_cost)
+            display_name = item.get("name", item.get("resource_id", "unknown"))
+            monthly_cost = self._get_resource_monthly_cost(item)
             rows.append(
                 {
-                    "name": item.get("resource_id", item.get("name", "unknown")),
+                    "name": display_name,
                     "type": item.get("type", "unknown"),
                     "location": item.get("region", "unknown"),
                     "team": item.get("tags", {}).get("team"),
                     "monthly_cost": monthly_cost,
-                    "days_idle": 0,
-                    "status": "active",
+                    "days_idle": int(item.get("days_idle", 0)),
+                    "status": item.get("status", "active"),
+                    "utilisation": self._get_resource_utilisation(item),
+                    "metrics": item.get("metrics", ""),
                 }
             )
+            seen_names.add(display_name)
         for item in profile["idle_resources"]:
+            if item["resource_id"] in seen_names:
+                continue
             rows.append(
                 {
                     "name": item["resource_id"],
@@ -343,9 +399,12 @@ class MockCostDataProvider(CostDataProvider):
                     "monthly_cost": item["monthly_cost"],
                     "days_idle": item["days_idle"],
                     "status": "idle",
+                    "utilisation": item.get("utilisation"),
                 }
             )
         for item in profile["orphaned_resources"]:
+            if item["resource_id"] in seen_names:
+                continue
             rows.append(
                 {
                     "name": item["resource_id"],
@@ -356,6 +415,7 @@ class MockCostDataProvider(CostDataProvider):
                     "days_idle": item["days_idle"],
                     "status": "orphaned",
                     "reason_orphaned": item["reason_orphaned"],
+                    "utilisation": item.get("utilisation"),
                 }
             )
         return rows
@@ -388,10 +448,18 @@ class MockCostDataProvider(CostDataProvider):
         return {
             "success": True,
             "team_name": summary["team_name"],
+            "team_id": summary["team_id"],
             "lead": summary["lead"],
             "period": f"Last {days} days",
             "retrieved_at": datetime.now().isoformat(),
             "data_source": f"mock ({scenario_run.scenario_id})",
+            "current_spend": summary["current_spend"],
+            "budget_value": summary["monthly_budget"],
+            "budget_amount": summary["monthly_budget"],
+            "anomaly_detected": summary["anomaly_detected"],
+            "anomaly_description": summary["anomaly_description"],
+            "cost_spike_date": summary["cost_spike_date"],
+            "top_resources": summary["top_resources"],
             "budget": {
                 "monthly_budget": f"${summary['monthly_budget']:,.0f}",
                 "current_spend": f"${summary['current_spend']:,.2f}",
