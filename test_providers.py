@@ -21,8 +21,11 @@ print("=" * 60)
 os.environ["USE_LIVE_DATA"] = "false"
 
 from src.providers import get_cost_provider, is_live_mode
+from src.scenarios import build_scenario_run
+from src.g import g
 from app import _reset_providers as reset_provider
 reset_provider()
+g.scenario_run = build_scenario_run("scenario_1_vm_destroy")
 
 print(f"Live mode: {is_live_mode()}")
 provider = get_cost_provider()

@@ -25,7 +25,7 @@ class WorkflowCaseResult:
 
 class WorkflowEvalAdapter:
     """
-    Executes the same full query workflow the app uses for a single-turn investigation.
+    Executes the current agent-only mock query workflow for a single-turn investigation.
     """
 
     def __init__(self, team_filter: str = "All Teams") -> None:
@@ -37,33 +37,13 @@ class WorkflowEvalAdapter:
 
         scenario_run = build_scenario_run(case["scenario_id"])
         app_module._set_mode("Mock")
+        app_module.DETERMINISTIC_MODE = False
         app_module._current_scenario_run = scenario_run
+        app_module._conversation_history = []
         app_module.g.scenario_run = scenario_run
 
-        detected_intent = app_module._classify_query_intent(prompt)
+        detected_intent = "GENERAL"
         classifier_preview = app_module._fallback_classify_query_intent(prompt)
-        direct_result = app_module._try_handle_mock_scenario_query(
-            prompt,
-            self.team_filter,
-            scenario_run,
-            detected_intent,
-        )
-
-        if direct_result is not None:
-            return WorkflowCaseResult(
-                test_id=case["test_id"],
-                scenario_id=case["scenario_id"],
-                user_input=prompt,
-                full_query=full_query,
-                detected_intent=detected_intent,
-                execution_mode="mock_direct",
-                final_output=direct_result.get("answer", ""),
-                tools_used=list(direct_result.get("tools_used", [])),
-                steps=list(direct_result.get("steps", [])),
-                sources=list(direct_result.get("sources", [])),
-                classifier_preview=classifier_preview,
-            )
-
         agent = app_module._get_agent()
         scenario_context = app_module._build_scenario_context(scenario_run)
         with app_module._AGENT_CONTEXT_LOCK:
@@ -94,7 +74,7 @@ class WorkflowEvalAdapter:
             user_input=prompt,
             full_query=full_query,
             detected_intent=detected_intent,
-            execution_mode="fallback_agent",
+            execution_mode="agent_only",
             final_output=result.get("answer", ""),
             tools_used=list(result.get("tools_used", [])),
             steps=steps,

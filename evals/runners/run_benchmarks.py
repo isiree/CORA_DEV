@@ -147,7 +147,7 @@ def main() -> None:
         "system_without_rag",
         NoRAGWorkflowEvalAdapter(team_filter="All Teams"),
         cases,
-        "Same workflow with RAG conceptually disabled; on the current fixed root-cause dataset it usually matches the full system because prompts resolve through deterministic mock branches.",
+        "Same agent workflow with historical_tool conceptually removed; on the current fixed root-cause dataset it usually remains close to the full system because these prompts are mostly cost/pipeline investigations.",
     )
     benchmark_rows.append(row)
     detail_records["system_without_rag"] = details

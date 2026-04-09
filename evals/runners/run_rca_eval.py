@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from evals.adapters import WorkflowEvalAdapter
 from evals.common import (
     DEFAULT_CONFUSION_CSV,
     DEFAULT_DATASET_PATH,
@@ -24,7 +25,6 @@ from evals.utils.label_extraction import extract_root_cause_label
 os.environ["USE_LIVE_DATA"] = "false"
 
 import app as app_module
-from src.scenarios import build_scenario_run
 
 
 def _utc_now() -> str:
@@ -37,17 +37,9 @@ def _load_dataset(dataset_path: Path) -> dict:
 
 
 def _run_case(case: dict) -> dict:
-    prompt = case["user_query"]
-    scenario_run = build_scenario_run(case["scenario_id"])
-    team_id = app_module._extract_team_from_query(prompt, "All Teams")
-
-    # This is an RCA-only runner, so we evaluate the canonical root-cause
-    # branch directly and record the fallback classifier result as context.
-    classifier_intent_preview = app_module._fallback_classify_query_intent(prompt)
-    detected_intent = "ROOT_CAUSE"
-    result = app_module._build_mock_root_cause_result(scenario_run, team_id)
-
-    final_output = result.get("answer", "")
+    adapter = WorkflowEvalAdapter(team_filter="All Teams")
+    workflow_result = adapter.run_case(case)
+    final_output = workflow_result.final_output
     prediction = extract_root_cause_label(final_output)
 
     return {
@@ -62,10 +54,11 @@ def _run_case(case: dict) -> dict:
         "reference_answer": case["reference_answer"],
         "final_output": final_output,
         "expected_tool_trajectory": case["expected_tool_trajectory"],
-        "observed_tools_used": result.get("tools_used", []),
-        "observed_sources": result.get("sources", []),
-        "detected_intent": detected_intent,
-        "classifier_intent_preview": classifier_intent_preview,
+        "observed_tools_used": workflow_result.tools_used,
+        "observed_sources": workflow_result.sources,
+        "detected_intent": workflow_result.detected_intent,
+        "classifier_intent_preview": workflow_result.classifier_preview,
+        "execution_mode": workflow_result.execution_mode,
         "extraction_confidence": prediction.confidence,
         "matched_signals": prediction.matched_signals,
         "score_breakdown": prediction.score_breakdown,
@@ -93,6 +86,7 @@ def _write_predictions_csv(path: Path, records: list[dict]) -> None:
         "expected_service",
         "detected_intent",
         "classifier_intent_preview",
+        "execution_mode",
         "extraction_confidence",
         "matched_signals",
         "expected_tool_trajectory",
@@ -138,7 +132,7 @@ def main() -> None:
         "dataset_version": dataset.get("version"),
         "dataset_path": str(dataset_path.relative_to(Path.cwd())),
         "assumptions": [
-            "This runner evaluates the canonical deterministic mock root-cause function in app.py for the five numbered scenarios.",
+            "This runner evaluates RCA labels from the current agent-only mock workflow for the five numbered scenarios.",
             "Predicted RCA labels are extracted from final answer text only.",
             "Precision, recall, and F1 are macro-averaged across observed labels.",
         ],

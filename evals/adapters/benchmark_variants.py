@@ -21,9 +21,9 @@ class NoRAGWorkflowEvalAdapter(WorkflowEvalAdapter):
     """
     Benchmark variant that keeps the same app workflow but conceptually removes RAG.
 
-    For the current fixed root-cause dataset, prompts resolve through deterministic
-    mock branches, so this variant is expected to match the full system unless the
-    dataset is expanded to fallback-agent/RAG-heavy prompts.
+    For the current fixed root-cause dataset, historical_tool usage is uncommon,
+    so this variant is expected to remain close to the full system unless the
+    dataset is expanded with policy/context-heavy prompts.
     """
 
     def run_case(self, case: dict[str, Any]) -> WorkflowCaseResult:

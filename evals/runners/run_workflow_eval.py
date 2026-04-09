@@ -119,18 +119,18 @@ def main() -> None:
             "evaluator": "local_structured",
             "adk_supported": False,
             "adk_gap_reason": (
-                "The current app is a custom HTTP server plus LangChain/Groq agent with deterministic mock branches, "
+                "The current app is a custom HTTP server plus LangChain/Groq agent, "
                 "not a Google ADK agent runtime. There is no google.adk dependency, ADK session model, or ADK-native tool trace stream to plug into directly."
             ),
             "adk_todo": [
-                "Wrap the workflow in an ADK-native agent/session abstraction instead of the current custom app.py dispatch path.",
+                "Wrap the agent workflow in an ADK-native agent/session abstraction instead of the current custom app.py dispatch path.",
                 "Emit tool calls and intermediate events in ADK's trace/evaluation format rather than only app-local steps/tool lists.",
                 "Add the google.adk dependency and map the current mock scenario execution path into ADK runner inputs and outputs.",
             ],
         },
         "assumptions": [
-            "This runner follows the same end-to-end mock workflow as app.py: classify query, try deterministic mock handling, then fall back to the live agent only if needed.",
-            "For the fixed dataset, the prompts are single-turn root-cause questions, so the current workflow normally resolves through the deterministic mock branch.",
+            "This runner follows the current end-to-end mock workflow as app.py: build scenario context, execute the agent, then score the observed answer and tool trajectory.",
+            "DETERMINISTIC_MODE is forced off during workflow evaluation so every case measures the agent path.",
             "Response match is measured with local token-overlap F1 against reference_answer.",
             "Rubric score is a local structured score based on root-cause correctness, team grounding, service grounding, evidence grounding, and clarity.",
             "Tool trajectory score combines tool-set overlap and order preservation against expected_tool_trajectory.",
