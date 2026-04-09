@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-02T09:21:28.329410+00:00",
+  "generated_at": "2026-04-04T08:53:37.002893+00:00",
   "dataset_id": "imrag-mock-root-cause-starter",
   "dataset_version": "0.1.0",
   "dataset_path": "evals/dataset/mock_scenarios_starter.json",
@@ -8,10 +8,10 @@
       "benchmark_family": "workflow",
       "variant": "full_system",
       "cases": 5,
-      "response_match_f1": 0.689345,
-      "rubric_score": 0.88,
-      "tool_trajectory_score": 0.95,
-      "tool_exact_match_rate": 0.8,
+      "response_match_f1": 0.224407,
+      "rubric_score": 0.946667,
+      "tool_trajectory_score": 0.63,
+      "tool_exact_match_rate": 0.0,
       "context_precision": "",
       "context_recall": "",
       "faithfulness": "",
@@ -22,15 +22,15 @@
       "benchmark_family": "workflow",
       "variant": "system_without_rag",
       "cases": 5,
-      "response_match_f1": 0.689345,
-      "rubric_score": 0.88,
-      "tool_trajectory_score": 0.95,
-      "tool_exact_match_rate": 0.8,
+      "response_match_f1": 0.223025,
+      "rubric_score": 0.946667,
+      "tool_trajectory_score": 0.63,
+      "tool_exact_match_rate": 0.0,
       "context_precision": "",
       "context_recall": "",
       "faithfulness": "",
       "answer_relevancy": "",
-      "notes": "Same workflow with RAG conceptually disabled; on the current fixed root-cause dataset it usually matches the full system because prompts resolve through deterministic mock branches."
+      "notes": "Same agent workflow with historical_tool conceptually removed; on the current fixed root-cause dataset it usually remains close to the full system because these prompts are mostly cost/pipeline investigations."
     },
     {
       "benchmark_family": "workflow",
@@ -50,14 +50,14 @@
       "benchmark_family": "rag_component",
       "variant": "semantic_rag_current",
       "cases": 5,
-      "response_match_f1": 0.260152,
+      "response_match_f1": 0.229081,
       "rubric_score": "",
       "tool_trajectory_score": "",
       "tool_exact_match_rate": "",
-      "context_precision": 0.942424,
-      "context_recall": 0.855,
-      "faithfulness": 0.690387,
-      "answer_relevancy": 0.5,
+      "context_precision": 1.0,
+      "context_recall": 0.810556,
+      "faithfulness": 0.75763,
+      "answer_relevancy": 0.433333,
       "notes": "Current semantic retrieval plus summary generation path, scored with the local RAG fallback metrics for benchmark comparability."
     },
     {
@@ -90,18 +90,16 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason for the CI Team cost spike is failed cleanup of the load-test environment. `deploy-loadtest` created the environment on January 9, 2025, but `destroy-loadtest` failed on January 10, 11, and 12 because `terraform-destroy` hit `Error acquiring the state lock`. That left the load-test VMs running and pushed daily spend from $100.00/day to $300.00/day.",
-        "execution_mode": "mock_direct",
-        "response_match_precision": 0.666667,
-        "response_match_recall": 0.909091,
-        "response_match_f1": 0.769231,
+        "final_output": "The main reason for the CI Team cost spike in Scenario 1 is the failure to destroy the load-test VMs `res-loadtest-1` and `res-loadtest-2` after the `deploy-loadtest` pipeline event. These VMs have been running since January 10, 2025, causing a significant increase in daily spend from $100.00 to $300.00.\n\nThe cost data shows that these two VMs are the top contributors to the team's current spend, with `res-loadtest-1` costing $4,200.00 per month and `res-loadtest-2` costing $4,095.00 per month. The team's budget status is critical, with a 300% budget usage and a forecast of $8,640.00.\n\nTo remediate this issue, I recommend the following steps:\n\n1. Manually destroy the leftover load-test VMs `res-loadtest-1` and `res-loadtest-2`.\n2. Review and fix the `destroy-loadtest` pipeline job to ensure successful cleanup of resources.\n3. Implement a cost monitoring alert to detect similar anomalies in the future.\n\nConfidence: HIGH\n\nThe causal chain of events is as follows:\n\n1. The `deploy-loadtest` pipeline event created the load-test environment.\n2. The `destroy-loadtest` pipeline job failed to destroy the resources.\n3. The load-test VMs `res-loadtest-1` and `res-loadtest-2` were left running, causing a significant increase in daily spend.\n\nBy following these steps, the CI Team can reduce their costs and prevent similar anomalies in the future.",
+        "execution_mode": "agent_only",
+        "response_match_precision": 0.121387,
+        "response_match_recall": 0.636364,
+        "response_match_f1": 0.203883,
         "predicted_root_cause_label": "failed_cleanup_orphaned_resources",
         "root_cause_match": true,
         "rubric_score": 1.0,
@@ -113,11 +111,11 @@
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s2_root_cause_001",
@@ -139,17 +137,17 @@
           "cost_api_tool",
           "pipeline_tool"
         ],
-        "final_output": "The Release Team is the team behind the Scenario 2 increase, but the spend appears as unallocated because the release deployment introduced bad tagging. `deploy-release-prod` on January 14, 2025 updated tags incorrectly, leaving one resource tagged `team=legacy` and another missing team tags entirely.",
-        "execution_mode": "mock_direct",
-        "response_match_precision": 0.5,
-        "response_match_recall": 0.5625,
-        "response_match_f1": 0.529412,
+        "final_output": "The main root cause of the unallocated cost increase in Scenario 2 is the incorrect tagging of resources during the `deploy-release-prod` pipeline deployment on January 14, 2025. Specifically, the resource `res-db-prod` was tagged with `team=legacy`, and `res-api-1` was missing team tags. This led to a sudden increase in unallocated spend from about $10.00/day to $300.00/day after January 15, 2025.\n\nThe causal chain is as follows:\n\n1. The `deploy-release-prod` pipeline was updated on January 14, 2025, with incorrect tagging instructions.\n2. The pipeline applied the tags to `res-db-prod` and `res-api-1`, resulting in invalid ownership metadata.\n3. As a result, `res-db-prod` was incorrectly tagged with `team=legacy`, and `res-api-1` had missing team tags.\n4. This led to a sudden increase in unallocated spend, which was detected as a cost anomaly.\n\nConfidence: HIGH\n\nRemediation:\n\n1. Update the `deploy-release-prod` pipeline to apply correct tagging instructions.\n2. Reapply correct tags to `res-db-prod` and `res-api-1`.\n3. Verify that the resources are correctly tagged and that the unallocated spend returns to normal levels.",
+        "execution_mode": "agent_only",
+        "response_match_precision": 0.139706,
+        "response_match_recall": 0.59375,
+        "response_match_f1": 0.22619,
         "predicted_root_cause_label": "tagging_regression_misattribution",
         "root_cause_match": true,
-        "rubric_score": 1.0,
+        "rubric_score": 0.8,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 1.0,
+          "team_grounding": 0.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
@@ -174,34 +172,32 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason is a bad autoscaler configuration change. `update-web-autoscaler` on January 9, 2025 was followed by `web-frontend-asg` scaling from 4 to 12 instances on January 10 with no scale-down, creating sustained excess compute cost.",
-        "execution_mode": "mock_direct",
-        "response_match_precision": 0.821429,
-        "response_match_recall": 0.741935,
-        "response_match_f1": 0.779661,
+        "final_output": "The main reason for the Release Team cost spike in Scenario 3 is the autoscaler change that left the `web-frontend-asg` and `res-web-frontend` resources scaled out after January 10, 2025. This resulted in a significant increase in compute costs, with `web-frontend-asg` incurring $5,200.00/month and `res-web-frontend` incurring $4,700.00/month. The daily spend rose from $150.00 to $450.00 and stayed elevated.\n\nThe causal chain is as follows:\n1. The `update-web-autoscaler` pipeline event on January 9, 2025, changed the autoscaler configuration.\n2. The `web-frontend-asg` and `res-web-frontend` resources were left scaled out.\n3. This led to a substantial increase in compute costs.\n\nConfidence: HIGH, as the cost data and anomaly detection directly point to the autoscaler change and the scaled-out resources.\n\nRemediation:\n1. Review and adjust the autoscaler configuration to prevent similar incidents.\n2. Consider implementing automated scaling reviews and approvals to prevent accidental changes.\n3. Monitor the utilisation and costs of `web-frontend-asg` and `res-web-frontend` closely to ensure they align with expected values.",
+        "execution_mode": "agent_only",
+        "response_match_precision": 0.150376,
+        "response_match_recall": 0.645161,
+        "response_match_f1": 0.243902,
         "predicted_root_cause_label": "autoscaler_no_scale_down",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 1.0,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s4_root_cause_001",
@@ -216,34 +212,35 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
+          "cost_api_tool",
           "pipeline_tool",
-          "cost_api_tool"
+          "pipeline_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
-          "cost_api_tool"
+          "cost_api_tool",
+          "pipeline_tool"
         ],
-        "final_output": "The main reason is a forgotten proof-of-concept environment. `deploy-poc-analytics` created resources that remained active after January 14, 2025, while the dashboard POC was actually destroyed successfully. The spike comes from abandoned analytics resources, not the decoy dashboard workflow.",
-        "execution_mode": "mock_direct",
-        "response_match_precision": 0.689655,
-        "response_match_recall": 0.714286,
-        "response_match_f1": 0.701754,
+        "final_output": "The main reason for the CloudOps Team cost spike in Scenario 4 is that the POC analytics resources `poc-analytics-vm-1` and `poc-analytics-db` were left active after the POC should have ended. These resources are costing $3,600.00/month and $1,800.00/month respectively, with very low utilisation (0.4% and 1.1%). \n\nThe pipeline event `deploy-poc-analytics` stayed active, while `destroy-poc-dashboard` succeeded. The failed pipeline event `validate-poc-expiry` on January 14, 2025, indicated that automatic cleanup did not run due to missing expiration tags on the POC resources.\n\nThe causal chain is:\n1. The POC resources were not properly cleaned up.\n2. The resources remained idle, incurring costs.\n3. The cost anomaly was detected on January 15, 2025.\n\nConfidence: HIGH\n\nRemediation: \n1. Manually terminate `poc-analytics-vm-1` and `poc-analytics-db` resources.\n2. Implement proper tagging and expiration policies for future POC resources.",
+        "execution_mode": "agent_only",
+        "response_match_precision": 0.15,
+        "response_match_recall": 0.642857,
+        "response_match_f1": 0.243243,
         "predicted_root_cause_label": "forgotten_poc_environment",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 0.933333,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
-          "evidence_grounding": 1.0,
+          "evidence_grounding": 0.666667,
           "clarity_confidence": 1.0
         },
-        "tool_precision": 1.0,
+        "tool_precision": 0.666667,
         "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_f1": 0.8,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.65,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s5_root_cause_001",
@@ -258,34 +255,32 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason is an application configuration mistake in `deploy-release-api`. The January 19, 2025 rollout set `MAX_WORKERS=500`, which triggered a pod-count surge and retry storm. This is an app-driven scaling problem rather than an orphaned infrastructure issue.",
-        "execution_mode": "mock_direct",
-        "response_match_precision": 0.655172,
-        "response_match_recall": 0.678571,
-        "response_match_f1": 0.666667,
+        "final_output": "The main reason for the Release Team cost spike in Scenario 5 is the misconfiguration of `MAX_WORKERS=500` in the `deploy-release-api` pipeline on January 19, 2025. This caused the `release-api` and `rel-api-pods` resources to scale excessively, leading to a significant increase in daily spend from $150.00 to $600.00.\n\nKey evidence:\n- The `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.\n- The `release-api` service cost $5,400.00/month with 88.0% utilisation.\n- The `rel-api-pods` (k8s-pod-set) cost $6,200.00/month with 2.4% utilisation.\n\nThe causal chain:\n1. `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.\n2. This caused `release-api` and `rel-api-pods` to scale excessively.\n3. The scaling led to a significant increase in compute costs.\n\nConfidence: HIGH\n\nRemediation:\n1. Review and adjust the `MAX_WORKERS` configuration in the `deploy-release-api` pipeline to a more appropriate value based on historical demand.\n2. Monitor the `release-api` and `rel-api-pods` resources for utilisation and adjust as necessary to prevent over-scaling.",
+        "execution_mode": "agent_only",
+        "response_match_precision": 0.123188,
+        "response_match_recall": 0.607143,
+        "response_match_f1": 0.204819,
         "predicted_root_cause_label": "application_misconfiguration_over_scaling",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 1.0,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       }
     ],
     "system_without_rag": [
@@ -302,18 +297,16 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason for the CI Team cost spike is failed cleanup of the load-test environment. `deploy-loadtest` created the environment on January 9, 2025, but `destroy-loadtest` failed on January 10, 11, and 12 because `terraform-destroy` hit `Error acquiring the state lock`. That left the load-test VMs running and pushed daily spend from $100.00/day to $300.00/day.",
-        "execution_mode": "mock_direct+no_rag",
-        "response_match_precision": 0.666667,
-        "response_match_recall": 0.909091,
-        "response_match_f1": 0.769231,
+        "final_output": "The main reason for the CI Team cost spike in Scenario 1 is the failure to destroy the load-test VMs `res-loadtest-1` and `res-loadtest-2` after the `deploy-loadtest` pipeline event. These VMs have been running since January 10, 2025, causing a significant increase in daily spend from $100.00 to $300.00.\n\nThe cost data shows that these two VMs are the top contributors to the team's cost anomaly, with `res-loadtest-1` costing $4,200.00/month and `res-loadtest-2` costing $4,095.00/month. The team's budget status is critical, with a current spend of $7,200.00 and a budget used of 300.0%.\n\nTo remediate this issue, I recommend:\n\n1. Terminating the `res-loadtest-1` and `res-loadtest-2` VMs to prevent further costs.\n2. Reviewing the `destroy-loadtest` pipeline event to ensure that it is properly configured to destroy the load-test VMs.\n3. Implementing a cost governance policy to prevent similar cost anomalies in the future.\n\nConfidence: HIGH\n\nThe causal chain of events is as follows:\n\n1. The `deploy-loadtest` pipeline event created the load-test environment.\n2. The `destroy-loadtest` pipeline event failed to destroy the load-test VMs.\n3. The load-test VMs `res-loadtest-1` and `res-loadtest-2` continued to run, causing a significant increase in daily spend.\n\nThe cost data and pipeline events support this conclusion, and the recommended remediation steps should prevent similar cost anomalies in the future.",
+        "execution_mode": "agent_only+no_rag",
+        "response_match_precision": 0.112994,
+        "response_match_recall": 0.606061,
+        "response_match_f1": 0.190476,
         "predicted_root_cause_label": "failed_cleanup_orphaned_resources",
         "root_cause_match": true,
         "rubric_score": 1.0,
@@ -325,11 +318,11 @@
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s2_root_cause_001",
@@ -351,17 +344,17 @@
           "cost_api_tool",
           "pipeline_tool"
         ],
-        "final_output": "The Release Team is the team behind the Scenario 2 increase, but the spend appears as unallocated because the release deployment introduced bad tagging. `deploy-release-prod` on January 14, 2025 updated tags incorrectly, leaving one resource tagged `team=legacy` and another missing team tags entirely.",
-        "execution_mode": "mock_direct+no_rag",
-        "response_match_precision": 0.5,
-        "response_match_recall": 0.5625,
-        "response_match_f1": 0.529412,
+        "final_output": "The main root cause of the unallocated cost increase in Scenario 2 is the incorrect tagging of resources during the `deploy-release-prod` pipeline deployment on January 14, 2025. Specifically, the resource `res-db-prod` was tagged with `team=legacy`, and `res-api-1` was missing team tags. This led to a sudden increase in unallocated spend from about $10.00/day to $300.00/day after January 15, 2025.\n\nThe causal chain is as follows:\n\n1. The `deploy-release-prod` pipeline was updated on January 14, 2025, with incorrect tagging instructions.\n2. The pipeline applied the tags to `res-db-prod` and `res-api-1`, resulting in invalid ownership metadata.\n3. As a result, `res-db-prod` was incorrectly tagged with `team=legacy`, and `res-api-1` had missing team tags.\n4. This led to a sudden increase in unallocated spend, which was detected as a cost anomaly.\n\nConfidence: HIGH\n\nRemediation:\n\n1. Update the `deploy-release-prod` pipeline to apply correct tagging instructions.\n2. Reapply correct tags to `res-db-prod` and `res-api-1`.\n3. Verify that the resources are correctly tagged and that the unallocated spend returns to normal levels.",
+        "execution_mode": "agent_only+no_rag",
+        "response_match_precision": 0.139706,
+        "response_match_recall": 0.59375,
+        "response_match_f1": 0.22619,
         "predicted_root_cause_label": "tagging_regression_misattribution",
         "root_cause_match": true,
-        "rubric_score": 1.0,
+        "rubric_score": 0.8,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 1.0,
+          "team_grounding": 0.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
@@ -386,34 +379,32 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason is a bad autoscaler configuration change. `update-web-autoscaler` on January 9, 2025 was followed by `web-frontend-asg` scaling from 4 to 12 instances on January 10 with no scale-down, creating sustained excess compute cost.",
-        "execution_mode": "mock_direct+no_rag",
-        "response_match_precision": 0.821429,
-        "response_match_recall": 0.741935,
-        "response_match_f1": 0.779661,
+        "final_output": "The main reason for the Release Team cost spike in Scenario 3 is the autoscaler change that left the `web-frontend-asg` and `res-web-frontend` resources scaled out after January 10, 2025. This change resulted in a significant increase in compute costs, with `web-frontend-asg` and `res-web-frontend` incurring $5,200.00 and $4,700.00 per month, respectively.\n\nThe daily spend for the Release Team rose from $150.00 to $450.00 after January 10, 2025, and remained elevated. The `update-web-autoscaler` pipeline event on January 9, 2025, preceded the sustained scale-out.\n\nThe causal chain is as follows:\n\n1. The `update-web-autoscaler` pipeline event on January 9, 2025, modified the autoscaler configuration.\n2. The autoscaler change left `web-frontend-asg` and `res-web-frontend` scaled out.\n3. The scaled-out resources resulted in a significant increase in compute costs.\n\nConfidence: HIGH\n\nRemediation:\n\n1. Review the autoscaler configuration to ensure it is aligned with the expected scaling behavior.\n2. Verify that the `web-frontend-asg` and `res-web-frontend` resources are not over-provisioned.\n3. Consider implementing a more dynamic scaling strategy to avoid similar cost spikes in the future.",
+        "execution_mode": "agent_only+no_rag",
+        "response_match_precision": 0.146853,
+        "response_match_recall": 0.677419,
+        "response_match_f1": 0.241379,
         "predicted_root_cause_label": "autoscaler_no_scale_down",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 1.0,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s4_root_cause_001",
@@ -428,34 +419,35 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
+          "cost_api_tool",
           "pipeline_tool",
-          "cost_api_tool"
+          "pipeline_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
-          "cost_api_tool"
+          "cost_api_tool",
+          "pipeline_tool"
         ],
-        "final_output": "The main reason is a forgotten proof-of-concept environment. `deploy-poc-analytics` created resources that remained active after January 14, 2025, while the dashboard POC was actually destroyed successfully. The spike comes from abandoned analytics resources, not the decoy dashboard workflow.",
-        "execution_mode": "mock_direct+no_rag",
-        "response_match_precision": 0.689655,
-        "response_match_recall": 0.714286,
-        "response_match_f1": 0.701754,
+        "final_output": "The main reason for the CloudOps Team cost spike in Scenario 4 is that the POC analytics resources `poc-analytics-vm-1` and `poc-analytics-db` were left active after the POC should have ended. These resources are costing $3,600.00/month and $1,800.00/month respectively, with very low utilisation (0.4% and 1.1%). \n\nThe pipeline event `deploy-poc-analytics` stayed active, while `destroy-poc-dashboard` succeeded. The failed pipeline event `validate-poc-expiry` on January 14, 2025, indicated that automatic cleanup did not run due to missing expiration tags on the POC resources.\n\nThe causal chain is:\n1. The POC resources were not properly cleaned up.\n2. The resources remained idle, incurring costs.\n3. The cost anomaly was detected on January 15, 2025.\n\nConfidence: HIGH\n\nRemediation: \n1. Manually terminate `poc-analytics-vm-1` and `poc-analytics-db` resources.\n2. Implement proper tagging and expiration policies for future POC resources.",
+        "execution_mode": "agent_only+no_rag",
+        "response_match_precision": 0.15,
+        "response_match_recall": 0.642857,
+        "response_match_f1": 0.243243,
         "predicted_root_cause_label": "forgotten_poc_environment",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 0.933333,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
-          "evidence_grounding": 1.0,
+          "evidence_grounding": 0.666667,
           "clarity_confidence": 1.0
         },
-        "tool_precision": 1.0,
+        "tool_precision": 0.666667,
         "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_f1": 0.8,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.65,
+        "tool_trajectory_exact_match": false
       },
       {
         "test_id": "mock_s5_root_cause_001",
@@ -470,34 +462,32 @@
           "cost_api_tool"
         ],
         "observed_tool_trajectory": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
         "observed_tools_used": [
-          "pipeline_tool",
           "cost_api_tool"
         ],
-        "final_output": "The main reason is an application configuration mistake in `deploy-release-api`. The January 19, 2025 rollout set `MAX_WORKERS=500`, which triggered a pod-count surge and retry storm. This is an app-driven scaling problem rather than an orphaned infrastructure issue.",
-        "execution_mode": "mock_direct+no_rag",
-        "response_match_precision": 0.655172,
-        "response_match_recall": 0.678571,
-        "response_match_f1": 0.666667,
+        "final_output": "The main reason for the Release Team cost spike in Scenario 5 is the configuration change `MAX_WORKERS=500` in the `deploy-release-api` pipeline on January 19, 2025. This change caused the `release-api` and `rel-api-pods` resources to scale excessively, leading to a significant increase in daily spend from $150.00 to $600.00.\n\nKey evidence:\n- The cost anomaly was detected on January 20, 2025.\n- The `release-api` service is incurring $5,400.00/month with high utilisation (88.0%).\n- The `rel-api-pods` Kubernetes pod set is incurring $6,200.00/month.\n- The Release Team's current spend is $9,450.00, exceeding the monthly budget of $2,400 by 393.8%.\n\nConfidence: HIGH\n\nRemediation:\n1. Review and adjust the `MAX_WORKERS` configuration in the `deploy-release-api` pipeline to a more suitable value based on historical demand.\n2. Monitor the `release-api` and `rel-api-pods` resources for utilisation and adjust scaling policies to prevent similar spikes.\n3. Verify that the auto-cost hold triggered by the budget critical status is appropriately set to prevent further overspending.",
+        "execution_mode": "agent_only+no_rag",
+        "response_match_precision": 0.129771,
+        "response_match_recall": 0.607143,
+        "response_match_f1": 0.213836,
         "predicted_root_cause_label": "application_misconfiguration_over_scaling",
         "root_cause_match": true,
-        "rubric_score": 0.8,
+        "rubric_score": 1.0,
         "rubric_breakdown": {
           "cause_correctness": 1.0,
-          "team_grounding": 0.0,
+          "team_grounding": 1.0,
           "service_grounding": 1.0,
           "evidence_grounding": 1.0,
           "clarity_confidence": 1.0
         },
         "tool_precision": 1.0,
-        "tool_recall": 1.0,
-        "tool_f1": 1.0,
-        "tool_order_score": 1.0,
-        "tool_trajectory_score": 1.0,
-        "tool_trajectory_exact_match": true
+        "tool_recall": 0.5,
+        "tool_f1": 0.666667,
+        "tool_order_score": 0.5,
+        "tool_trajectory_score": 0.583333,
+        "tool_trajectory_exact_match": false
       }
     ],
     "minimal_tool_path": [
@@ -710,21 +700,21 @@
         "reference_answer": "The CI Team spike is caused by failed cleanup of the load-test environment. deploy-loadtest created the environment, then destroy-loadtest failed on January 10, 11, and 12, 2025 because terraform-destroy hit a state-lock error, leaving the load-test VMs running.",
         "retrieved_contexts": [
           "# Failed Terraform Destroy Jobs & Orphaned Resources\n\n## Context\n\nIaC destroy/cleanup jobs (Terraform or equivalent) can fail silently or mid-run, leaving test and POC environments running indefinitely. These orphaned resources continue to accrue cost without any active workload, often going unnoticed until a cost review. This is one of the most common sources of unexpected baseline cost increases in non-production environments.\n\n## When to Use This\n\n- Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal.\n- CI/CD pipeline shows failed or partially completed destroy/cleanup runs.\n- Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner.\n- Spend on a non-production project is unexpectedly flat and sustained over days or weeks.\n\n## Likely Causes\n\n- **State lock not released** after a previous failed run, preventing subsequent destroy attempts.\n- **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them.\n- **Missing or insufficient permissions** \u2014 the pipeline service account cannot delete certain resource types.\n- **Dependency ordering issues** \u2014 destroy fails because a dependent resource (e.g., a network interface) must be removed first.\n- Pipeline fails early and subsequent teardown steps are skipped without alerting.\n\n## Quick Investigation Steps\n\n1. **Check the cost graph** for the affected project/subscription. Look for a step-change in spend on the day of the test that never reversed.\n2. **Filter resources by tag** (`env=test`, `env=poc`, etc.) in the cloud console or asset inventory. Note creation dates and current running state.\n3. **Open the destroy pipeline logs** for the relevant run. Search for `Error`, `lock`, `permission denied`, or `still exists` messages to identify the failure point.\n4. **Check IaC state** \u2014 run `terraform state list` (or equivalent) against the workspace and compare to what is actually deployed. Flag any resources present in the cloud but absent from state.\n5. **Verify IAM/RBAC permissions** for the pipeline service account against the resources that failed to delete.\n\n## Remediation\n\n- **State lock:** Force-unlock the state (`terraform force-unlock <lock-id>`) and re-run the destroy pipeline.\n- **State drift:** Import the orphaned resource into state (`terraform import`) or manually add it, then re-run destroy.\n- **Permission issues:** Grant the pipeline service account the required delete permissions, then re-run.\n- **Dependency failures:** Identify the blocking dependency in the error logs, remove it manually or reorder destroy steps, then retry.\n- **Last resort:** Manually delete resources via the cloud console or CLI. Document what was cleaned up and why automation failed.\n\n## Prevention / Best Practices\n\n- **TTL tags:** Require a `ttl` or `expires` tag on all test/POC resources. Run a scheduled job that flags or terminates resources past their TTL.\n- **Destroy pipeline alerts:** Configure the CI/CD system to send a high-priority alert (Slack, PagerDuty, etc.) on any failed destroy run.\n- **Cost alerts on non-prod projects:** Set a budget alert threshold on test/POC projects so any sustained spend triggers a notification.\n- **Periodic resource audits:** Schedule a weekly report of resources older than N days in non-production environments.\n- **State validation in pipelines:** Add a post-apply check that compares expected vs. actual resource count as a pipeline gate.\n\n## Related Docs\n\n- Non-Production Environment Lifecycle Policy\n- IaC State Management & Locking Guide\n- Pipeline Service Account Permission Matrix\n- Cloud Budget Alerting Setup",
-          "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup",
-          "# Avoiding Idle Cost from Forgotten Test/POC Environments\n\n## Context\n\nTest, POC, and experimental environments are frequently spun up to validate ideas or support short-term projects. Without a defined lifecycle, these environments are rarely decommissioned. Even at low utilisation, they accumulate a steady and hard-to-justify cost over weeks or months. This is primarily a governance and ownership problem.\n\n## When to Use This\n\n- A long-running cost plateau is linked to resources tagged `env=test`, `env=poc`, or similar.\n- Resources show near-zero CPU/memory utilisation but consistent, stable spend.\n- No active team member can confirm whether an environment is still needed.\n- A cost review surfaces non-production spend with no associated active project or ticket.\n\n## Likely Causes\n\n- No TTL or expiry policy was defined at environment creation time.\n- No automated destroy pipeline exists; teardown was left as a manual step that never happened.\n- Team ownership is unclear \u2014 the original creator has moved on or the project was abandoned.\n- Environment was created outside the standard provisioning process and never registered.\n\n## Quick Investigation Steps\n\n1. Filter resources by `env=test`, `env=poc`, or equivalent tags. Note creation dates.\n2. Check utilisation metrics (CPU, memory, network) over the past 7\u201330 days. Near-zero activity is a strong signal the environment is idle.\n3. Identify the owning team from tags or resource group naming and confirm whether the environment is still needed.\n4. Check whether a destroy or cleanup pipeline was ever created for this environment.\n\n## Remediation\n\n- If confirmed idle: decommission following the standard environment teardown process.\n- If ownership is unclear: escalate to the platform or FinOps lead to make a decommission decision within a defined SLA.\n- Document the cleanup action in the relevant ticket or cost review record.\n\n## Prevention / Best Practices\n\n- **Require TTL tags** (`ttl`, `expires-on`) at environment creation. Enforce via policy or a CI gate.\n- **Auto-cleanup jobs:** Run a scheduled job that warns when a TTL is approaching and terminates environments past their TTL if no renewal is submitted.\n- **Clear ownership:** Require `team` and `owner` tags at creation; link environments to an active project or ticket.\n- **Regular non-prod spend reviews:** Include non-production cost as a standing item in FinOps or platform team reviews.\n- **Lifecycle process:** Maintain a simple, documented process for requesting, extending, and decommissioning test environments.\n\n## Related Docs\n\n- Non-Production Environment Request & Lifecycle Policy\n- TTL Tag Auto-Cleanup Job Documentation\n- Failed Terraform Destroy Jobs & Orphaned Resources\n- Cloud Tagging Standards"
+          "# Avoiding Idle Cost from Forgotten Test/POC Environments\n\n## Context\n\nTest, POC, and experimental environments are frequently spun up to validate ideas or support short-term projects. Without a defined lifecycle, these environments are rarely decommissioned. Even at low utilisation, they accumulate a steady and hard-to-justify cost over weeks or months. This is primarily a governance and ownership problem.\n\n## When to Use This\n\n- A long-running cost plateau is linked to resources tagged `env=test`, `env=poc`, or similar.\n- Resources show near-zero CPU/memory utilisation but consistent, stable spend.\n- No active team member can confirm whether an environment is still needed.\n- A cost review surfaces non-production spend with no associated active project or ticket.\n\n## Likely Causes\n\n- No TTL or expiry policy was defined at environment creation time.\n- No automated destroy pipeline exists; teardown was left as a manual step that never happened.\n- Team ownership is unclear \u2014 the original creator has moved on or the project was abandoned.\n- Environment was created outside the standard provisioning process and never registered.\n\n## Quick Investigation Steps\n\n1. Filter resources by `env=test`, `env=poc`, or equivalent tags. Note creation dates.\n2. Check utilisation metrics (CPU, memory, network) over the past 7\u201330 days. Near-zero activity is a strong signal the environment is idle.\n3. Identify the owning team from tags or resource group naming and confirm whether the environment is still needed.\n4. Check whether a destroy or cleanup pipeline was ever created for this environment.\n\n## Remediation\n\n- If confirmed idle: decommission following the standard environment teardown process.\n- If ownership is unclear: escalate to the platform or FinOps lead to make a decommission decision within a defined SLA.\n- Document the cleanup action in the relevant ticket or cost review record.\n\n## Prevention / Best Practices\n\n- **Require TTL tags** (`ttl`, `expires-on`) at environment creation. Enforce via policy or a CI gate.\n- **Auto-cleanup jobs:** Run a scheduled job that warns when a TTL is approaching and terminates environments past their TTL if no renewal is submitted.\n- **Clear ownership:** Require `team` and `owner` tags at creation; link environments to an active project or ticket.\n- **Regular non-prod spend reviews:** Include non-production cost as a standing item in FinOps or platform team reviews.\n- **Lifecycle process:** Maintain a simple, documented process for requesting, extending, and decommissioning test environments.\n\n## Related Docs\n\n- Non-Production Environment Request & Lifecycle Policy\n- TTL Tag Auto-Cleanup Job Documentation\n- Failed Terraform Destroy Jobs & Orphaned Resources\n- Cloud Tagging Standards",
+          "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup"
         ],
         "retrieved_sources": [
           "data/knowledge/doc1.md",
-          "data/knowledge/doc5.md",
-          "data/knowledge/doc4.md"
+          "data/knowledge/doc4.md",
+          "data/knowledge/doc5.md"
         ],
-        "eval_response": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-loadtest success on 2025-01-09 (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: destroy-loadtest failed on 2025-01-10; terraform-destroy logged 'Error: Error acquiring the state lock' (Source: data/knowledge/doc1.md)",
-        "final_output": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-loadtest success on 2025-01-09 (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: destroy-loadtest failed on 2025-01-10; terraform-destroy logged 'Error: Error acquiring the state lock' (Source: data/knowledge/doc1.md)\n\nSources:\n- data/knowledge/doc1.md\n- data/knowledge/doc5.md\n- data/knowledge/doc4.md",
+        "eval_response": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-loadtest success on 2025-01-09; expiry-check logged 'Environment created without confirmed teardown window; cleanup depends on destroy-loadtest.' (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: destroy-loadtest failed on 2025-01-09; terraform-destroy logged 'Error: Error acquiring the state lock while destroying the load-test environment.' (Source: data/knowledge/doc1.md)",
+        "final_output": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-loadtest success on 2025-01-09; expiry-check logged 'Environment created without confirmed teardown window; cleanup depends on destroy-loadtest.' (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: destroy-loadtest failed on 2025-01-09; terraform-destroy logged 'Error: Error acquiring the state lock while destroying the load-test environment.' (Source: data/knowledge/doc1.md)\n\nSources:\n- data/knowledge/doc1.md\n- data/knowledge/doc4.md\n- data/knowledge/doc5.md",
         "answer_relevancy": 0.333333,
-        "faithfulness": 0.77193,
+        "faithfulness": 0.777778,
         "context_precision": 1.0,
         "context_recall": 1.0,
-        "response_match_f1": 0.272
+        "response_match_f1": 0.28169
       },
       {
         "test_id": "mock_s2_root_cause_001",
@@ -741,13 +731,13 @@
           "data/knowledge/doc1.md",
           "data/knowledge/doc4.md"
         ],
-        "eval_response": "- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)\n- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy' (Source: data/knowledge/doc2.md)\n- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)\n- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)",
-        "final_output": "- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)\n- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy' (Source: data/knowledge/doc2.md)\n- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)\n- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)\n\nSources:\n- data/knowledge/doc2.md\n- data/knowledge/doc1.md\n- data/knowledge/doc4.md",
+        "eval_response": "- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)\n- Scenario evidence: validate-release-tags failed on 2025-01-14; tag-policy-check logged 'Invalid ownership metadata detected: team=legacy on res-db-prod and missing team tag on res-api-1.' (Source: data/knowledge/doc2.md)\n- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)\n- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)\n- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy'; tag-sync logged 'Applied tags to res-db-prod and res-api-1 with invalid ownership metadata.' (Source: data/knowledge/doc2.md)",
+        "final_output": "- Closest historical match: a tagging regression that pushed real team spend into the unallocated bucket (Source: data/knowledge/doc2.md)\n- Scenario evidence: validate-release-tags failed on 2025-01-14; tag-policy-check logged 'Invalid ownership metadata detected: team=legacy on res-db-prod and missing team tag on res-api-1.' (Source: data/knowledge/doc2.md)\n- Supporting evidence: Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces). (Source: data/knowledge/doc2.md)\n- Supporting evidence: Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments). (Source: data/knowledge/doc2.md)\n- Scenario evidence: deploy-release-prod success on 2025-01-14; terraform-apply logged 'Updating tags... team=legacy'; tag-sync logged 'Applied tags to res-db-prod and res-api-1 with invalid ownership metadata.' (Source: data/knowledge/doc2.md)\n\nSources:\n- data/knowledge/doc2.md\n- data/knowledge/doc1.md\n- data/knowledge/doc4.md",
         "answer_relevancy": 0.333333,
-        "faithfulness": 0.622581,
+        "faithfulness": 0.802632,
         "context_precision": 1.0,
         "context_recall": 1.0,
-        "response_match_f1": 0.318584
+        "response_match_f1": 0.2625
       },
       {
         "test_id": "mock_s3_root_cause_001",
@@ -756,21 +746,21 @@
         "reference_answer": "The spike is caused by a bad autoscaler configuration change. update-web-autoscaler ran on January 9, 2025, then web-frontend-asg scaled from 4 to 12 instances on January 10 and never scaled back down, creating sustained compute cost.",
         "retrieved_contexts": [
           "# Autoscaler Not Scaling Down & Cost Impact\n\n## Context\n\nAutoscalers (e.g., Kubernetes HPA, cluster autoscaler) are designed to reduce resource consumption when demand drops. When scale-down does not trigger correctly, nodes and pods remain provisioned at peak capacity long after traffic returns to normal. This pattern causes sustained over-provisioning costs and is often mistaken for legitimate load growth.\n\n## When to Use This\n\n- Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises.\n- Pod or node count remains elevated for hours or days after load returns to baseline.\n- Autoscaler event logs show frequent scale-up events but few or no scale-down events.\n- Cost per request is increasing alongside rising resource allocation.\n\n## Likely Causes\n\n- **Scale-down thresholds too conservative** \u2014 utilisation must fall very low before a scale-down triggers.\n- **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth).\n- **Minimum replica/node count set too high** \u2014 the floor prevents scale-down even when appropriate.\n- **Cooldown or stabilisation window too long** \u2014 the autoscaler waits too long between scale-down decisions.\n- Recent config change to autoscaler parameters that inadvertently broke scale-down behaviour.\n\n## Quick Investigation Steps\n\n1. **Plot traffic vs. pod/node count** over the relevant time window. Confirm that resource count did not follow traffic back down.\n2. **Review autoscaler event logs** \u2014 check the ratio of scale-up to scale-down events and look for suppression or error messages.\n3. **Inspect current autoscaler configuration** \u2014 note the scaling metric, thresholds, min/max values, and cooldown settings.\n4. **Check for recent config changes** to the HPA, cluster autoscaler, or node pool settings around the time the issue started.\n\n## Remediation\n\n- Adjust scale-down threshold and stabilisation window to values appropriate for the service's traffic pattern.\n- Review and correct the scaling metric if it does not accurately represent load.\n- Lower the minimum replica/node count if it was set defensively high without justification.\n- **Validate all changes in staging** before applying to production \u2014 confirm scale-down triggers under synthetic load reduction.\n\n## Prevention / Best Practices\n\n- Test autoscaling policies (both scale-up and scale-down) as part of staging performance testing.\n- Alert when scale-down has not occurred for an extended period despite low utilisation.\n- Set per-namespace or per-service cost budgets to catch over-provisioning quickly.\n- Document intended min/max replica ranges and scaling metrics for each service; review quarterly.\n\n## Related Docs\n\n- Kubernetes HPA Configuration Reference\n- Cluster Autoscaler Tuning Guide\n- Cost Monitoring per Namespace Setup\n- Staging Load Testing Runbook",
-          "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup",
-          "# Failed Terraform Destroy Jobs & Orphaned Resources\n\n## Context\n\nIaC destroy/cleanup jobs (Terraform or equivalent) can fail silently or mid-run, leaving test and POC environments running indefinitely. These orphaned resources continue to accrue cost without any active workload, often going unnoticed until a cost review. This is one of the most common sources of unexpected baseline cost increases in non-production environments.\n\n## When to Use This\n\n- Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal.\n- CI/CD pipeline shows failed or partially completed destroy/cleanup runs.\n- Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner.\n- Spend on a non-production project is unexpectedly flat and sustained over days or weeks.\n\n## Likely Causes\n\n- **State lock not released** after a previous failed run, preventing subsequent destroy attempts.\n- **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them.\n- **Missing or insufficient permissions** \u2014 the pipeline service account cannot delete certain resource types.\n- **Dependency ordering issues** \u2014 destroy fails because a dependent resource (e.g., a network interface) must be removed first.\n- Pipeline fails early and subsequent teardown steps are skipped without alerting.\n\n## Quick Investigation Steps\n\n1. **Check the cost graph** for the affected project/subscription. Look for a step-change in spend on the day of the test that never reversed.\n2. **Filter resources by tag** (`env=test`, `env=poc`, etc.) in the cloud console or asset inventory. Note creation dates and current running state.\n3. **Open the destroy pipeline logs** for the relevant run. Search for `Error`, `lock`, `permission denied`, or `still exists` messages to identify the failure point.\n4. **Check IaC state** \u2014 run `terraform state list` (or equivalent) against the workspace and compare to what is actually deployed. Flag any resources present in the cloud but absent from state.\n5. **Verify IAM/RBAC permissions** for the pipeline service account against the resources that failed to delete.\n\n## Remediation\n\n- **State lock:** Force-unlock the state (`terraform force-unlock <lock-id>`) and re-run the destroy pipeline.\n- **State drift:** Import the orphaned resource into state (`terraform import`) or manually add it, then re-run destroy.\n- **Permission issues:** Grant the pipeline service account the required delete permissions, then re-run.\n- **Dependency failures:** Identify the blocking dependency in the error logs, remove it manually or reorder destroy steps, then retry.\n- **Last resort:** Manually delete resources via the cloud console or CLI. Document what was cleaned up and why automation failed.\n\n## Prevention / Best Practices\n\n- **TTL tags:** Require a `ttl` or `expires` tag on all test/POC resources. Run a scheduled job that flags or terminates resources past their TTL.\n- **Destroy pipeline alerts:** Configure the CI/CD system to send a high-priority alert (Slack, PagerDuty, etc.) on any failed destroy run.\n- **Cost alerts on non-prod projects:** Set a budget alert threshold on test/POC projects so any sustained spend triggers a notification.\n- **Periodic resource audits:** Schedule a weekly report of resources older than N days in non-production environments.\n- **State validation in pipelines:** Add a post-apply check that compares expected vs. actual resource count as a pipeline gate.\n\n## Related Docs\n\n- Non-Production Environment Lifecycle Policy\n- IaC State Management & Locking Guide\n- Pipeline Service Account Permission Matrix\n- Cloud Budget Alerting Setup"
+          "# Failed Terraform Destroy Jobs & Orphaned Resources\n\n## Context\n\nIaC destroy/cleanup jobs (Terraform or equivalent) can fail silently or mid-run, leaving test and POC environments running indefinitely. These orphaned resources continue to accrue cost without any active workload, often going unnoticed until a cost review. This is one of the most common sources of unexpected baseline cost increases in non-production environments.\n\n## When to Use This\n\n- Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal.\n- CI/CD pipeline shows failed or partially completed destroy/cleanup runs.\n- Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner.\n- Spend on a non-production project is unexpectedly flat and sustained over days or weeks.\n\n## Likely Causes\n\n- **State lock not released** after a previous failed run, preventing subsequent destroy attempts.\n- **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them.\n- **Missing or insufficient permissions** \u2014 the pipeline service account cannot delete certain resource types.\n- **Dependency ordering issues** \u2014 destroy fails because a dependent resource (e.g., a network interface) must be removed first.\n- Pipeline fails early and subsequent teardown steps are skipped without alerting.\n\n## Quick Investigation Steps\n\n1. **Check the cost graph** for the affected project/subscription. Look for a step-change in spend on the day of the test that never reversed.\n2. **Filter resources by tag** (`env=test`, `env=poc`, etc.) in the cloud console or asset inventory. Note creation dates and current running state.\n3. **Open the destroy pipeline logs** for the relevant run. Search for `Error`, `lock`, `permission denied`, or `still exists` messages to identify the failure point.\n4. **Check IaC state** \u2014 run `terraform state list` (or equivalent) against the workspace and compare to what is actually deployed. Flag any resources present in the cloud but absent from state.\n5. **Verify IAM/RBAC permissions** for the pipeline service account against the resources that failed to delete.\n\n## Remediation\n\n- **State lock:** Force-unlock the state (`terraform force-unlock <lock-id>`) and re-run the destroy pipeline.\n- **State drift:** Import the orphaned resource into state (`terraform import`) or manually add it, then re-run destroy.\n- **Permission issues:** Grant the pipeline service account the required delete permissions, then re-run.\n- **Dependency failures:** Identify the blocking dependency in the error logs, remove it manually or reorder destroy steps, then retry.\n- **Last resort:** Manually delete resources via the cloud console or CLI. Document what was cleaned up and why automation failed.\n\n## Prevention / Best Practices\n\n- **TTL tags:** Require a `ttl` or `expires` tag on all test/POC resources. Run a scheduled job that flags or terminates resources past their TTL.\n- **Destroy pipeline alerts:** Configure the CI/CD system to send a high-priority alert (Slack, PagerDuty, etc.) on any failed destroy run.\n- **Cost alerts on non-prod projects:** Set a budget alert threshold on test/POC projects so any sustained spend triggers a notification.\n- **Periodic resource audits:** Schedule a weekly report of resources older than N days in non-production environments.\n- **State validation in pipelines:** Add a post-apply check that compares expected vs. actual resource count as a pipeline gate.\n\n## Related Docs\n\n- Non-Production Environment Lifecycle Policy\n- IaC State Management & Locking Guide\n- Pipeline Service Account Permission Matrix\n- Cloud Budget Alerting Setup",
+          "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup"
         ],
         "retrieved_sources": [
           "data/knowledge/doc3.md",
-          "data/knowledge/doc5.md",
-          "data/knowledge/doc1.md"
+          "data/knowledge/doc1.md",
+          "data/knowledge/doc5.md"
         ],
-        "eval_response": "- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)\n- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits' (Source: data/knowledge/doc3.md)\n- Supporting evidence: **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)\n- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)\n- Scenario evidence: web-frontend-asg; team=release-team; Instance count: 4 -> 12 on Jan 10. Current: 12. No scale-down events logged. (Source: data/knowledge/doc3.md)",
-        "final_output": "- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)\n- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits' (Source: data/knowledge/doc3.md)\n- Supporting evidence: **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)\n- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)\n- Scenario evidence: web-frontend-asg; team=release-team; Instance count: 4 -> 12 on Jan 10. Current: 12. No scale-down events logged. (Source: data/knowledge/doc3.md)\n\nSources:\n- data/knowledge/doc3.md\n- data/knowledge/doc5.md\n- data/knowledge/doc1.md",
-        "answer_relevancy": 0.833333,
-        "faithfulness": 0.676471,
+        "eval_response": "- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)\n- Scenario evidence: validate-web-autoscaler failed on 2025-01-09; scale-down-guardrail-check logged 'Scale-down guardrail failed: maxReplicas=12 with no valid scale-in metric threshold.' (Source: data/knowledge/doc3.md)\n- Supporting evidence: **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)\n- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)\n- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits'; autoscaler-rollout logged 'Applied scale-out policy to web-frontend-asg with maxReplicas=12.' (Source: data/knowledge/doc3.md)",
+        "final_output": "- Closest historical match: an autoscaler configuration issue that scaled up but did not scale back down (Source: data/knowledge/doc3.md)\n- Scenario evidence: validate-web-autoscaler failed on 2025-01-09; scale-down-guardrail-check logged 'Scale-down guardrail failed: maxReplicas=12 with no valid scale-in metric threshold.' (Source: data/knowledge/doc3.md)\n- Supporting evidence: **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth). (Source: data/knowledge/doc3.md)\n- Supporting evidence: Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises. (Source: data/knowledge/doc3.md)\n- Scenario evidence: update-web-autoscaler success on 2025-01-09; deploy-config logged 'Updated HPA config limits'; autoscaler-rollout logged 'Applied scale-out policy to web-frontend-asg with maxReplicas=12.' (Source: data/knowledge/doc3.md)\n\nSources:\n- data/knowledge/doc3.md\n- data/knowledge/doc1.md\n- data/knowledge/doc5.md",
+        "answer_relevancy": 0.5,
+        "faithfulness": 0.712644,
         "context_precision": 1.0,
         "context_recall": 0.625,
-        "response_match_f1": 0.239437
+        "response_match_f1": 0.189873
       },
       {
         "test_id": "mock_s4_root_cause_001",
@@ -778,22 +768,22 @@
         "user_query": "What is the main reason for the CloudOps Team cost spike in Scenario 4?",
         "reference_answer": "The spike is caused by a forgotten proof-of-concept environment. deploy-poc-analytics created analytics resources that stayed active after January 14, 2025, while the dashboard POC was cleaned up successfully. The abandoned analytics environment is the cost driver.",
         "retrieved_contexts": [
-          "# Avoiding Idle Cost from Forgotten Test/POC Environments\n\n## Context\n\nTest, POC, and experimental environments are frequently spun up to validate ideas or support short-term projects. Without a defined lifecycle, these environments are rarely decommissioned. Even at low utilisation, they accumulate a steady and hard-to-justify cost over weeks or months. This is primarily a governance and ownership problem.\n\n## When to Use This\n\n- A long-running cost plateau is linked to resources tagged `env=test`, `env=poc`, or similar.\n- Resources show near-zero CPU/memory utilisation but consistent, stable spend.\n- No active team member can confirm whether an environment is still needed.\n- A cost review surfaces non-production spend with no associated active project or ticket.\n\n## Likely Causes\n\n- No TTL or expiry policy was defined at environment creation time.\n- No automated destroy pipeline exists; teardown was left as a manual step that never happened.\n- Team ownership is unclear \u2014 the original creator has moved on or the project was abandoned.\n- Environment was created outside the standard provisioning process and never registered.\n\n## Quick Investigation Steps\n\n1. Filter resources by `env=test`, `env=poc`, or equivalent tags. Note creation dates.\n2. Check utilisation metrics (CPU, memory, network) over the past 7\u201330 days. Near-zero activity is a strong signal the environment is idle.\n3. Identify the owning team from tags or resource group naming and confirm whether the environment is still needed.\n4. Check whether a destroy or cleanup pipeline was ever created for this environment.\n\n## Remediation\n\n- If confirmed idle: decommission following the standard environment teardown process.\n- If ownership is unclear: escalate to the platform or FinOps lead to make a decommission decision within a defined SLA.\n- Document the cleanup action in the relevant ticket or cost review record.\n\n## Prevention / Best Practices\n\n- **Require TTL tags** (`ttl`, `expires-on`) at environment creation. Enforce via policy or a CI gate.\n- **Auto-cleanup jobs:** Run a scheduled job that warns when a TTL is approaching and terminates environments past their TTL if no renewal is submitted.\n- **Clear ownership:** Require `team` and `owner` tags at creation; link environments to an active project or ticket.\n- **Regular non-prod spend reviews:** Include non-production cost as a standing item in FinOps or platform team reviews.\n- **Lifecycle process:** Maintain a simple, documented process for requesting, extending, and decommissioning test environments.\n\n## Related Docs\n\n- Non-Production Environment Request & Lifecycle Policy\n- TTL Tag Auto-Cleanup Job Documentation\n- Failed Terraform Destroy Jobs & Orphaned Resources\n- Cloud Tagging Standards",
           "# Failed Terraform Destroy Jobs & Orphaned Resources\n\n## Context\n\nIaC destroy/cleanup jobs (Terraform or equivalent) can fail silently or mid-run, leaving test and POC environments running indefinitely. These orphaned resources continue to accrue cost without any active workload, often going unnoticed until a cost review. This is one of the most common sources of unexpected baseline cost increases in non-production environments.\n\n## When to Use This\n\n- Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal.\n- CI/CD pipeline shows failed or partially completed destroy/cleanup runs.\n- Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner.\n- Spend on a non-production project is unexpectedly flat and sustained over days or weeks.\n\n## Likely Causes\n\n- **State lock not released** after a previous failed run, preventing subsequent destroy attempts.\n- **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them.\n- **Missing or insufficient permissions** \u2014 the pipeline service account cannot delete certain resource types.\n- **Dependency ordering issues** \u2014 destroy fails because a dependent resource (e.g., a network interface) must be removed first.\n- Pipeline fails early and subsequent teardown steps are skipped without alerting.\n\n## Quick Investigation Steps\n\n1. **Check the cost graph** for the affected project/subscription. Look for a step-change in spend on the day of the test that never reversed.\n2. **Filter resources by tag** (`env=test`, `env=poc`, etc.) in the cloud console or asset inventory. Note creation dates and current running state.\n3. **Open the destroy pipeline logs** for the relevant run. Search for `Error`, `lock`, `permission denied`, or `still exists` messages to identify the failure point.\n4. **Check IaC state** \u2014 run `terraform state list` (or equivalent) against the workspace and compare to what is actually deployed. Flag any resources present in the cloud but absent from state.\n5. **Verify IAM/RBAC permissions** for the pipeline service account against the resources that failed to delete.\n\n## Remediation\n\n- **State lock:** Force-unlock the state (`terraform force-unlock <lock-id>`) and re-run the destroy pipeline.\n- **State drift:** Import the orphaned resource into state (`terraform import`) or manually add it, then re-run destroy.\n- **Permission issues:** Grant the pipeline service account the required delete permissions, then re-run.\n- **Dependency failures:** Identify the blocking dependency in the error logs, remove it manually or reorder destroy steps, then retry.\n- **Last resort:** Manually delete resources via the cloud console or CLI. Document what was cleaned up and why automation failed.\n\n## Prevention / Best Practices\n\n- **TTL tags:** Require a `ttl` or `expires` tag on all test/POC resources. Run a scheduled job that flags or terminates resources past their TTL.\n- **Destroy pipeline alerts:** Configure the CI/CD system to send a high-priority alert (Slack, PagerDuty, etc.) on any failed destroy run.\n- **Cost alerts on non-prod projects:** Set a budget alert threshold on test/POC projects so any sustained spend triggers a notification.\n- **Periodic resource audits:** Schedule a weekly report of resources older than N days in non-production environments.\n- **State validation in pipelines:** Add a post-apply check that compares expected vs. actual resource count as a pipeline gate.\n\n## Related Docs\n\n- Non-Production Environment Lifecycle Policy\n- IaC State Management & Locking Guide\n- Pipeline Service Account Permission Matrix\n- Cloud Budget Alerting Setup",
-          "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup"
+          "# Avoiding Idle Cost from Forgotten Test/POC Environments\n\n## Context\n\nTest, POC, and experimental environments are frequently spun up to validate ideas or support short-term projects. Without a defined lifecycle, these environments are rarely decommissioned. Even at low utilisation, they accumulate a steady and hard-to-justify cost over weeks or months. This is primarily a governance and ownership problem.\n\n## When to Use This\n\n- A long-running cost plateau is linked to resources tagged `env=test`, `env=poc`, or similar.\n- Resources show near-zero CPU/memory utilisation but consistent, stable spend.\n- No active team member can confirm whether an environment is still needed.\n- A cost review surfaces non-production spend with no associated active project or ticket.\n\n## Likely Causes\n\n- No TTL or expiry policy was defined at environment creation time.\n- No automated destroy pipeline exists; teardown was left as a manual step that never happened.\n- Team ownership is unclear \u2014 the original creator has moved on or the project was abandoned.\n- Environment was created outside the standard provisioning process and never registered.\n\n## Quick Investigation Steps\n\n1. Filter resources by `env=test`, `env=poc`, or equivalent tags. Note creation dates.\n2. Check utilisation metrics (CPU, memory, network) over the past 7\u201330 days. Near-zero activity is a strong signal the environment is idle.\n3. Identify the owning team from tags or resource group naming and confirm whether the environment is still needed.\n4. Check whether a destroy or cleanup pipeline was ever created for this environment.\n\n## Remediation\n\n- If confirmed idle: decommission following the standard environment teardown process.\n- If ownership is unclear: escalate to the platform or FinOps lead to make a decommission decision within a defined SLA.\n- Document the cleanup action in the relevant ticket or cost review record.\n\n## Prevention / Best Practices\n\n- **Require TTL tags** (`ttl`, `expires-on`) at environment creation. Enforce via policy or a CI gate.\n- **Auto-cleanup jobs:** Run a scheduled job that warns when a TTL is approaching and terminates environments past their TTL if no renewal is submitted.\n- **Clear ownership:** Require `team` and `owner` tags at creation; link environments to an active project or ticket.\n- **Regular non-prod spend reviews:** Include non-production cost as a standing item in FinOps or platform team reviews.\n- **Lifecycle process:** Maintain a simple, documented process for requesting, extending, and decommissioning test environments.\n\n## Related Docs\n\n- Non-Production Environment Request & Lifecycle Policy\n- TTL Tag Auto-Cleanup Job Documentation\n- Failed Terraform Destroy Jobs & Orphaned Resources\n- Cloud Tagging Standards",
+          "# Cost Attribution Issues Due to Missing or Incorrect Tags\n\n## Context\n\nCloud cost allocation relies on consistent resource tagging \u2014 typically `team`, `cost_center`, `env`, and similar keys. When tags are missing, wrong, or inconsistently named, costs land in an unallocated bucket or are attributed to the wrong team. This makes it impossible to hold teams accountable for their spend and masks real cost growth at the subscription level.\n\n## When to Use This\n\n- Total subscription/account spend is growing faster than any individual team's reported cost.\n- A large \"unallocated\" or \"unknown\" cost segment appears in the cost dashboard.\n- A team's dashboard shows flat spend while the overall bill increases.\n- Recent infrastructure changes were made outside the standard IaC pipeline (e.g., manual console deployments).\n\n## Likely Causes\n\n- New resources deployed without the required tags (manual creation, rushed deployments).\n- **Incorrect team values** \u2014 e.g., `team=legacy` used instead of `team=payments` after a team rename or reorganisation.\n- **Inconsistent tag keys** \u2014 `Team`, `team`, `TEAM`, or `squad` used interchangeably across resources or regions.\n- Tags applied at the resource level but not inherited by child resources (e.g., disks, snapshots, network interfaces).\n- IaC modules updated without propagating new tagging requirements to all resource blocks.\n\n## Quick Investigation Steps\n\n1. **Compare subscription-level vs. team-level cost totals.** The gap between them is the unattributed spend \u2014 note its size and trend.\n2. **Inspect the \"unallocated\" or \"other\" cost bucket** in your cost management tool. List the top resource types and groups by unattributed spend.\n3. **Cross-reference resource names and groups** with known team ownership (service catalogue, CMDB, or Slack channels) to identify likely owning teams.\n4. **Check recent IaC changes and pipeline runs** that deployed or modified resources around the time the unallocated cost appeared.\n5. **Audit tag keys and values** on the flagged resources \u2014 look for typos, casing differences, and missing mandatory keys.\n\n## Remediation\n\n- **Fix tags on existing resources** using bulk tag update tooling (cloud CLI, tagging API, or IaC import + re-apply).\n- **Update IaC modules and pipelines** to use the correct tag values going forward. Raise a PR for review.\n- **Notify owning teams** of the misattributed cost so they can reconcile their dashboards.\n- Where resources cannot be retagged immediately, document the exception and track manually until resolved.\n\n## Prevention / Best Practices\n\n- **Tagging standards document:** Maintain a single source of truth listing mandatory tag keys, allowed values, and naming conventions.\n- **Tag validation in CI:** Add a linting step to IaC pipelines that fails the build if mandatory tags are missing or use invalid values.\n- **Policy / guardrails enforcement:** Use cloud policy tools to deny or flag resource creation that omits required tags.\n- **Regular tagging compliance reports:** Schedule a weekly report showing the percentage of fully tagged resources, with a trend line.\n- **Tag changes in change management:** Treat `team`/`cost_center` tag updates as a change request to avoid silent misattribution.\n\n## Related Docs\n\n- Mandatory Tagging Standard & Allowed Values\n- IaC Tagging Module Reference\n- Cost Allocation Dashboard Guide\n- Cloud Policy & Guardrails Overview"
         ],
         "retrieved_sources": [
-          "data/knowledge/doc4.md",
           "data/knowledge/doc1.md",
-          "data/knowledge/doc5.md"
+          "data/knowledge/doc4.md",
+          "data/knowledge/doc2.md"
         ],
-        "eval_response": "- Closest historical match: a forgotten or abandoned test/POC environment left running after the work was finished (Source: data/knowledge/doc4.md)\n- Scenario evidence: deploy-poc-analytics success on 2025-01-14 (Source: data/knowledge/doc4.md)\n- Supporting evidence: No automated destroy pipeline exists; teardown was left as a manual step that never happened. (Source: data/knowledge/doc4.md)\n- Supporting evidence: A cost review surfaces non-production spend with no associated active project or ticket. (Source: data/knowledge/doc4.md)\n- Scenario evidence: deploy-poc-dashboard success on 2025-01-10 (Source: data/knowledge/doc4.md)",
-        "final_output": "- Closest historical match: a forgotten or abandoned test/POC environment left running after the work was finished (Source: data/knowledge/doc4.md)\n- Scenario evidence: deploy-poc-analytics success on 2025-01-14 (Source: data/knowledge/doc4.md)\n- Supporting evidence: No automated destroy pipeline exists; teardown was left as a manual step that never happened. (Source: data/knowledge/doc4.md)\n- Supporting evidence: A cost review surfaces non-production spend with no associated active project or ticket. (Source: data/knowledge/doc4.md)\n- Scenario evidence: deploy-poc-dashboard success on 2025-01-10 (Source: data/knowledge/doc4.md)\n\nSources:\n- data/knowledge/doc4.md\n- data/knowledge/doc1.md\n- data/knowledge/doc5.md",
+        "eval_response": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: validate-poc-expiry failed on 2025-01-14; ttl-policy-check logged 'Missing expiration tag on poc-analytics resources; automatic cleanup will not run.' (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-poc-analytics success on 2025-01-14; notify-owner logged 'No owner confirmed for poc-analytics cleanup after project end date.' (Source: data/knowledge/doc1.md)",
+        "final_output": "- Closest historical match: failed cleanup of test or POC resources after a destroy job failure (Source: data/knowledge/doc1.md)\n- Scenario evidence: validate-poc-expiry failed on 2025-01-14; ttl-policy-check logged 'Missing expiration tag on poc-analytics resources; automatic cleanup will not run.' (Source: data/knowledge/doc1.md)\n- Supporting evidence: **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them. (Source: data/knowledge/doc1.md)\n- Supporting evidence: Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal. (Source: data/knowledge/doc1.md)\n- Scenario evidence: deploy-poc-analytics success on 2025-01-14; notify-owner logged 'No owner confirmed for poc-analytics cleanup after project end date.' (Source: data/knowledge/doc1.md)\n\nSources:\n- data/knowledge/doc1.md\n- data/knowledge/doc4.md\n- data/knowledge/doc2.md",
         "answer_relevancy": 0.333333,
-        "faithfulness": 0.690476,
+        "faithfulness": 0.75,
         "context_precision": 1.0,
-        "context_recall": 1.0,
-        "response_match_f1": 0.236364
+        "context_recall": 0.777778,
+        "response_match_f1": 0.15493
       },
       {
         "test_id": "mock_s5_root_cause_001",
@@ -803,20 +793,20 @@
         "retrieved_contexts": [
           "# Investigating Cost Spikes Caused by Application Behaviour\n\n## Context\n\nNot all cost anomalies originate from infrastructure changes. Application-level behaviour \u2014 runaway retries, unbounded worker concurrency, inefficient background jobs, or excessive logging \u2014 can cause resource consumption to spike significantly. These cases are harder to diagnose because the infrastructure and autoscaler may be functioning exactly as designed; the problem is what the application is asking them to do.\n\n## When to Use This\n\n- Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes.\n- No failed pipelines, no autoscaler misconfiguration, no new resources provisioned.\n- The service is consuming significantly more CPU, memory, or I/O than historical baselines suggest it should.\n- Logs show a high volume of errors, retries, or repeated identical operations.\n\n## Likely Causes\n\n- **Misconfigured retry/backoff logic** \u2014 a downstream failure triggers an unthrottled retry storm.\n- **Unbounded worker or thread pool concurrency** \u2014 too many parallel workers processing a queue or running background jobs.\n- **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected.\n- **Debug logging or verbose telemetry left enabled in production** \u2014 drives large volumes of log/metric ingest and storage cost.\n- **Inefficient queries or API calls** \u2014 N+1 patterns or missing pagination causing large, repeated payloads.\n\n## Quick Investigation Steps\n\n1. Correlate the cost/resource spike with recent deployment timestamps to identify the likely change.\n2. Compare key metrics before and after the deployment: CPU, memory, request rate, error rate, and relevant custom metrics.\n3. Review application logs for the affected service \u2014 look for error floods, retry messages, or repeated identical operations.\n4. Inspect application configuration values deployed in that release: worker counts, retry limits, logging levels, job schedules, and timeouts.\n\n## Remediation\n\n- Correct the relevant configuration value or fix the application logic.\n- Redeploy (or roll back if a quick fix is not available).\n- Confirm that resource utilisation returns to the expected baseline after redeployment.\n\n## Prevention / Best Practices\n\n- Include resource utilisation checks in pre-production testing, particularly for services with background processing or high-volume I/O.\n- Add code review guidelines that flag changes to concurrency settings, retry logic, and logging levels.\n- Define app-level SLOs that include efficiency metrics (e.g., cost per job, requests per CPU-second) alongside latency and error rate.\n- Ensure debug logging and verbose telemetry are gated by environment config and cannot be accidentally promoted to production.\n\n## Related Docs\n\n- Service Deployment & Rollback Runbook\n- Observability & Logging Standards\n- Autoscaler Not Scaling Down & Cost Impact\n- Cost Monitoring per Service Setup",
           "# Failed Terraform Destroy Jobs & Orphaned Resources\n\n## Context\n\nIaC destroy/cleanup jobs (Terraform or equivalent) can fail silently or mid-run, leaving test and POC environments running indefinitely. These orphaned resources continue to accrue cost without any active workload, often going unnoticed until a cost review. This is one of the most common sources of unexpected baseline cost increases in non-production environments.\n\n## When to Use This\n\n- Cost spikes during or after a test/experiment, then plateaus at a higher baseline instead of returning to normal.\n- CI/CD pipeline shows failed or partially completed destroy/cleanup runs.\n- Resources tagged `env=test`, `env=poc`, or `env=staging` are still running with no active owner.\n- Spend on a non-production project is unexpectedly flat and sustained over days or weeks.\n\n## Likely Causes\n\n- **State lock not released** after a previous failed run, preventing subsequent destroy attempts.\n- **State drift** \u2014 resources exist in the cloud that are no longer tracked in Terraform state, so `destroy` skips them.\n- **Missing or insufficient permissions** \u2014 the pipeline service account cannot delete certain resource types.\n- **Dependency ordering issues** \u2014 destroy fails because a dependent resource (e.g., a network interface) must be removed first.\n- Pipeline fails early and subsequent teardown steps are skipped without alerting.\n\n## Quick Investigation Steps\n\n1. **Check the cost graph** for the affected project/subscription. Look for a step-change in spend on the day of the test that never reversed.\n2. **Filter resources by tag** (`env=test`, `env=poc`, etc.) in the cloud console or asset inventory. Note creation dates and current running state.\n3. **Open the destroy pipeline logs** for the relevant run. Search for `Error`, `lock`, `permission denied`, or `still exists` messages to identify the failure point.\n4. **Check IaC state** \u2014 run `terraform state list` (or equivalent) against the workspace and compare to what is actually deployed. Flag any resources present in the cloud but absent from state.\n5. **Verify IAM/RBAC permissions** for the pipeline service account against the resources that failed to delete.\n\n## Remediation\n\n- **State lock:** Force-unlock the state (`terraform force-unlock <lock-id>`) and re-run the destroy pipeline.\n- **State drift:** Import the orphaned resource into state (`terraform import`) or manually add it, then re-run destroy.\n- **Permission issues:** Grant the pipeline service account the required delete permissions, then re-run.\n- **Dependency failures:** Identify the blocking dependency in the error logs, remove it manually or reorder destroy steps, then retry.\n- **Last resort:** Manually delete resources via the cloud console or CLI. Document what was cleaned up and why automation failed.\n\n## Prevention / Best Practices\n\n- **TTL tags:** Require a `ttl` or `expires` tag on all test/POC resources. Run a scheduled job that flags or terminates resources past their TTL.\n- **Destroy pipeline alerts:** Configure the CI/CD system to send a high-priority alert (Slack, PagerDuty, etc.) on any failed destroy run.\n- **Cost alerts on non-prod projects:** Set a budget alert threshold on test/POC projects so any sustained spend triggers a notification.\n- **Periodic resource audits:** Schedule a weekly report of resources older than N days in non-production environments.\n- **State validation in pipelines:** Add a post-apply check that compares expected vs. actual resource count as a pipeline gate.\n\n## Related Docs\n\n- Non-Production Environment Lifecycle Policy\n- IaC State Management & Locking Guide\n- Pipeline Service Account Permission Matrix\n- Cloud Budget Alerting Setup",
-          "# Avoiding Idle Cost from Forgotten Test/POC Environments\n\n## Context\n\nTest, POC, and experimental environments are frequently spun up to validate ideas or support short-term projects. Without a defined lifecycle, these environments are rarely decommissioned. Even at low utilisation, they accumulate a steady and hard-to-justify cost over weeks or months. This is primarily a governance and ownership problem.\n\n## When to Use This\n\n- A long-running cost plateau is linked to resources tagged `env=test`, `env=poc`, or similar.\n- Resources show near-zero CPU/memory utilisation but consistent, stable spend.\n- No active team member can confirm whether an environment is still needed.\n- A cost review surfaces non-production spend with no associated active project or ticket.\n\n## Likely Causes\n\n- No TTL or expiry policy was defined at environment creation time.\n- No automated destroy pipeline exists; teardown was left as a manual step that never happened.\n- Team ownership is unclear \u2014 the original creator has moved on or the project was abandoned.\n- Environment was created outside the standard provisioning process and never registered.\n\n## Quick Investigation Steps\n\n1. Filter resources by `env=test`, `env=poc`, or equivalent tags. Note creation dates.\n2. Check utilisation metrics (CPU, memory, network) over the past 7\u201330 days. Near-zero activity is a strong signal the environment is idle.\n3. Identify the owning team from tags or resource group naming and confirm whether the environment is still needed.\n4. Check whether a destroy or cleanup pipeline was ever created for this environment.\n\n## Remediation\n\n- If confirmed idle: decommission following the standard environment teardown process.\n- If ownership is unclear: escalate to the platform or FinOps lead to make a decommission decision within a defined SLA.\n- Document the cleanup action in the relevant ticket or cost review record.\n\n## Prevention / Best Practices\n\n- **Require TTL tags** (`ttl`, `expires-on`) at environment creation. Enforce via policy or a CI gate.\n- **Auto-cleanup jobs:** Run a scheduled job that warns when a TTL is approaching and terminates environments past their TTL if no renewal is submitted.\n- **Clear ownership:** Require `team` and `owner` tags at creation; link environments to an active project or ticket.\n- **Regular non-prod spend reviews:** Include non-production cost as a standing item in FinOps or platform team reviews.\n- **Lifecycle process:** Maintain a simple, documented process for requesting, extending, and decommissioning test environments.\n\n## Related Docs\n\n- Non-Production Environment Request & Lifecycle Policy\n- TTL Tag Auto-Cleanup Job Documentation\n- Failed Terraform Destroy Jobs & Orphaned Resources\n- Cloud Tagging Standards"
+          "# Autoscaler Not Scaling Down & Cost Impact\n\n## Context\n\nAutoscalers (e.g., Kubernetes HPA, cluster autoscaler) are designed to reduce resource consumption when demand drops. When scale-down does not trigger correctly, nodes and pods remain provisioned at peak capacity long after traffic returns to normal. This pattern causes sustained over-provisioning costs and is often mistaken for legitimate load growth.\n\n## When to Use This\n\n- Cluster or service cost jumps sharply during a traffic spike and does not decrease once traffic normalises.\n- Pod or node count remains elevated for hours or days after load returns to baseline.\n- Autoscaler event logs show frequent scale-up events but few or no scale-down events.\n- Cost per request is increasing alongside rising resource allocation.\n\n## Likely Causes\n\n- **Scale-down thresholds too conservative** \u2014 utilisation must fall very low before a scale-down triggers.\n- **Wrong scaling metric** \u2014 scaling on a metric that doesn't reflect actual load (e.g., CPU when the bottleneck is queue depth).\n- **Minimum replica/node count set too high** \u2014 the floor prevents scale-down even when appropriate.\n- **Cooldown or stabilisation window too long** \u2014 the autoscaler waits too long between scale-down decisions.\n- Recent config change to autoscaler parameters that inadvertently broke scale-down behaviour.\n\n## Quick Investigation Steps\n\n1. **Plot traffic vs. pod/node count** over the relevant time window. Confirm that resource count did not follow traffic back down.\n2. **Review autoscaler event logs** \u2014 check the ratio of scale-up to scale-down events and look for suppression or error messages.\n3. **Inspect current autoscaler configuration** \u2014 note the scaling metric, thresholds, min/max values, and cooldown settings.\n4. **Check for recent config changes** to the HPA, cluster autoscaler, or node pool settings around the time the issue started.\n\n## Remediation\n\n- Adjust scale-down threshold and stabilisation window to values appropriate for the service's traffic pattern.\n- Review and correct the scaling metric if it does not accurately represent load.\n- Lower the minimum replica/node count if it was set defensively high without justification.\n- **Validate all changes in staging** before applying to production \u2014 confirm scale-down triggers under synthetic load reduction.\n\n## Prevention / Best Practices\n\n- Test autoscaling policies (both scale-up and scale-down) as part of staging performance testing.\n- Alert when scale-down has not occurred for an extended period despite low utilisation.\n- Set per-namespace or per-service cost budgets to catch over-provisioning quickly.\n- Document intended min/max replica ranges and scaling metrics for each service; review quarterly.\n\n## Related Docs\n\n- Kubernetes HPA Configuration Reference\n- Cluster Autoscaler Tuning Guide\n- Cost Monitoring per Namespace Setup\n- Staging Load Testing Runbook"
         ],
         "retrieved_sources": [
           "data/knowledge/doc5.md",
           "data/knowledge/doc1.md",
-          "data/knowledge/doc4.md"
+          "data/knowledge/doc3.md"
         ],
-        "eval_response": "- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500' (Source: data/knowledge/doc5.md)\n- Supporting evidence: **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)\n- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-cloudops-service success on 2025-01-19 (Source: data/knowledge/doc5.md)",
-        "final_output": "- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500' (Source: data/knowledge/doc5.md)\n- Supporting evidence: **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)\n- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-cloudops-service success on 2025-01-19 (Source: data/knowledge/doc5.md)\n\nSources:\n- data/knowledge/doc5.md\n- data/knowledge/doc1.md\n- data/knowledge/doc4.md",
+        "eval_response": "- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)\n- Scenario evidence: validate-release-api-config failed on 2025-01-19; config-lint logged 'MAX_WORKERS=500 exceeds approved production limit of 64.' (Source: data/knowledge/doc5.md)\n- Supporting evidence: **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)\n- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500'; post-deploy-canary logged 'Canary saw retry storm risk after worker-count increase, but rollout continued.' (Source: data/knowledge/doc5.md)",
+        "final_output": "- Closest historical match: an application configuration or behavior issue that triggered over-scaling, retries, or excess workload activity (Source: data/knowledge/doc5.md)\n- Scenario evidence: validate-release-api-config failed on 2025-01-19; config-lint logged 'MAX_WORKERS=500 exceeds approved production limit of 64.' (Source: data/knowledge/doc5.md)\n- Supporting evidence: **Logic bugs** \u2014 a code change causes a loop to run far more iterations than intended, or a job runs more frequently than expected. (Source: data/knowledge/doc5.md)\n- Supporting evidence: Resource usage and cost spike for a specific service shortly after a deployment, with no corresponding infrastructure changes. (Source: data/knowledge/doc5.md)\n- Scenario evidence: deploy-release-api success on 2025-01-19; deploy-k8s logged 'Config update: MAX_WORKERS=500'; post-deploy-canary logged 'Canary saw retry storm risk after worker-count increase, but rollout continued.' (Source: data/knowledge/doc5.md)\n\nSources:\n- data/knowledge/doc5.md\n- data/knowledge/doc1.md\n- data/knowledge/doc3.md",
         "answer_relevancy": 0.666667,
-        "faithfulness": 0.690476,
-        "context_precision": 0.712121,
+        "faithfulness": 0.745098,
+        "context_precision": 1.0,
         "context_recall": 0.65,
-        "response_match_f1": 0.234375
+        "response_match_f1": 0.25641
       }
     ],
     "keyword_rag_baseline": [
