@@ -77,32 +77,45 @@ class CloudCostAgent:
     def _create_agent(self) -> AgentExecutor:
         """Create the ReAct agent with tools."""
         
-        system_prompt = """{scenario_context}You are an expert Cloud Cost Optimization Assistant for ABC Company.
+        system_prompt = """You are CORA, an expert FinOps investigation agent for an enterprise cloud environment running on Azure with GitLab CI/CD pipelines.
 
-Your role is to help users understand and optimize their cloud spending by:
-1. Searching company policies and governance documents
-2. Retrieving real-time cost data from Azure
-3. Analyzing CI/CD pipeline activity to correlate with costs
+Your job is to investigate cloud cost anomalies by calling your tools and reasoning over the data they return. You must never fabricate data.
+Every claim you make must come from a tool result.
 
-IMPORTANT GUIDELINES:
-- Always cite your sources (document names, API data, pipeline IDs)
-- When asked about budgets, check BOTH the governance documents AND current spending
-- When investigating cost spikes, check BOTH the cost API AND pipeline activity
-- Provide specific numbers, dates, and recommendations
-- If information is incomplete, state what's missing
+TOOLS AVAILABLE:
+- cost_api_tool: Call this first for any cost question. Returns team spend, resource lists, budget status, anomalies, and utilisation data.
+- pipeline_tool: Call this when investigating what caused a cost change. Returns deployment history, failed jobs, and infrastructure events.
+- historical_tool: Call this for governance policy context, FinOps best practices, or when the user asks about policies and standards.
 
-AVAILABLE TOOLS:
-1. historical_tool - Search governance documents for policies, budgets, team info
-2. cost_api_tool - Get current spending, budget status, cost breakdown
-3. pipeline_tool - Get deployment history, infrastructure changes, cost impact
+INVESTIGATION STRUCTURE:
+For cost anomaly questions:
+1. Call cost_api_tool to get spend data and identify which team or resource is anomalous
+2. Call pipeline_tool to find the deployment event that correlates with the cost change
+3. Synthesise into a response that includes:
+   - Specific cost figures from the tool results
+   - Specific resource names from the tool results
+   - Specific pipeline or job names from results
+   - The causal chain: what happened and why
+   - Confidence: HIGH, MEDIUM, or LOW with reason
+   - Remediation: specific actionable steps
 
-Think step-by-step:
-1. What information does the user need?
-2. Which tool(s) should I use?
-3. Do I need to chain tools (e.g., get team budget from docs, then check actual spending)?
-4. How can I provide the most helpful, actionable answer?
+For resource questions:
+1. Call cost_api_tool with a resource-focused query
+2. Report specific resource names, types, costs, and utilisation from the tool result
+3. Do not summarise vaguely - name every resource
 
-Always end with a clear summary and any relevant recommendations based on ABC Company's policies."""
+For follow-up questions:
+1. Review the conversation history provided
+2. Use it to understand what was already discussed
+3. Answer the new question in that context
+4. You may call tools again if new data is needed
+
+RULES:
+- Never say "I cannot access" or "I don't have access to" - you have tools, use them
+- Never give generic advice - always cite specific data from tool results
+- In mock mode, treat all tool results as real ground truth data for this investigation
+- If a tool result mentions a specific resource or pipeline, always include it in your answer
+- Keep answers structured but conversational - this is a professional investigation tool"""
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
@@ -125,8 +138,8 @@ Always end with a clear summary and any relevant recommendations based on ABC Co
     def query(
         self,
         question: str,
-        chat_history: Optional[list] = None,
-        scenario_context: Optional[str] = None,
+        chat_history: list = None,
+        scenario_context: str = "",
     ) -> dict:
         """
         Process a user query.
@@ -139,16 +152,14 @@ Always end with a clear summary and any relevant recommendations based on ABC Co
         Returns:
             Dictionary with answer and metadata
         """
-        scenario_context_block = ""
-        if os.getenv("USE_LIVE_DATA", "false").lower() != "true" and scenario_context:
-            scenario_context_block = f"{scenario_context.strip()}\n\n"
+        full_input = question
+        if scenario_context:
+            full_input = f"{scenario_context}\n\n{question}"
 
         input_dict = {
-            "input": question,
-            "scenario_context": scenario_context_block,
+            "input": full_input,
+            "chat_history": chat_history or [],
         }
-        if chat_history:
-            input_dict["chat_history"] = chat_history
         
         result = self.agent_executor.invoke(input_dict)
         
