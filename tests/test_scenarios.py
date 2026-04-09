@@ -29,6 +29,34 @@ SCENARIO_BUILDERS = [
     scenario_legacy_mock,
 ]
 
+PRIMARY_SCENARIO_EXPECTATIONS = {
+    scenario_1_vm_destroy: {
+        "team_id": "ci-team",
+        "pipeline": "destroy-loadtest",
+        "resources": {"res-loadtest-1", "res-loadtest-2"},
+    },
+    scenario_2_tagging: {
+        "team_id": "release-team",
+        "pipeline": "deploy-release-prod",
+        "resources": {"res-db-prod", "res-api-1"},
+    },
+    scenario_3_autoscaler: {
+        "team_id": "release-team",
+        "pipeline": "update-web-autoscaler",
+        "resources": {"web-frontend-asg", "res-web-frontend"},
+    },
+    scenario_4_forgotten_poc: {
+        "team_id": "cloudops-team",
+        "pipeline": "deploy-poc-analytics",
+        "resources": {"poc-analytics-vm-1", "poc-analytics-db"},
+    },
+    scenario_5_app_misconfig: {
+        "team_id": "release-team",
+        "pipeline": "deploy-release-api",
+        "resources": {"release-api", "rel-api-pods"},
+    },
+}
+
 
 @pytest.mark.parametrize("scenario_builder", SCENARIO_BUILDERS)
 def test_scenario_build_returns_scenario_run(scenario_builder):
@@ -156,3 +184,79 @@ def test_scenario_3_has_vmss_or_autoscaler_resource():
         )
     ]
     assert len(autoscaler_resources) >= 1
+
+
+@pytest.mark.parametrize(
+    ("scenario_builder", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_team_has_required_agent_evidence_fields(scenario_builder, expected):
+    """Primary teams in the five numbered scenarios must expose explicit anomaly metadata for the agent."""
+    run = scenario_builder()
+    team = next(team for team in run.cost_data["teams"] if team["team_id"] == expected["team_id"])
+
+    assert team["anomaly_detected"] is True
+    assert isinstance(team["anomaly_description"], str) and team["anomaly_description"]
+    assert isinstance(team["cost_spike_date"], str) and team["cost_spike_date"]
+    assert isinstance(team["top_resources"], list)
+    assert len(team["top_resources"]) >= 2
+
+    resource_names = {resource["name"] for resource in team["top_resources"]}
+    assert expected["resources"].issubset(resource_names)
+    for resource in team["top_resources"]:
+        assert {"name", "type", "cost", "utilisation"} <= resource.keys()
+
+
+@pytest.mark.parametrize(
+    ("scenario_builder", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_team_has_near_zero_utilisation_resource(scenario_builder, expected):
+    """Each numbered scenario must include at least one near-idle resource for resource follow-up questions."""
+    run = scenario_builder()
+    team = next(team for team in run.cost_data["teams"] if team["team_id"] == expected["team_id"])
+    assert any(float(resource["utilisation"]) <= 5.0 for resource in team["top_resources"])
+
+
+@pytest.mark.parametrize(
+    ("scenario_builder", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_team_pipeline_contains_expected_causal_event(scenario_builder, expected):
+    """Each numbered scenario must include the expected causal pipeline on the primary team."""
+    run = scenario_builder()
+    pipelines = [
+        pipeline
+        for pipeline in run.pipeline_data["pipelines"]
+        if pipeline["team_id"] == expected["team_id"]
+    ]
+    assert any(pipeline["name"] == expected["pipeline"] for pipeline in pipelines)
+
+
+@pytest.mark.parametrize(
+    ("scenario_builder", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_team_pipeline_has_failed_or_suspicious_job_before_spike(scenario_builder, expected):
+    """Each numbered scenario must include failed or suspicious job evidence before the spike date."""
+    run = scenario_builder()
+    team = next(team for team in run.cost_data["teams"] if team["team_id"] == expected["team_id"])
+    spike_date = datetime.fromisoformat(f"{team['cost_spike_date']}T00:00:00+00:00")
+
+    suspicious_pipelines = []
+    for pipeline in run.pipeline_data["pipelines"]:
+        if pipeline["team_id"] != expected["team_id"]:
+            continue
+        started_at = datetime.fromisoformat(pipeline["started_at"].replace("Z", "+00:00"))
+        if started_at > spike_date:
+            continue
+        jobs = pipeline.get("jobs", [])
+        if any(job.get("status") in {"failed", "warning"} or job.get("log_excerpt") for job in jobs):
+            suspicious_pipelines.append((pipeline, jobs))
+
+    assert suspicious_pipelines
+    assert any(
+        any(isinstance(job.get("name"), str) and job["name"] for job in jobs)
+        and any(isinstance(job.get("log_excerpt", ""), str) and job.get("log_excerpt") for job in jobs)
+        for _, jobs in suspicious_pipelines
+    )

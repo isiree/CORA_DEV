@@ -15,6 +15,35 @@ pytest.importorskip("sentence_transformers")
 pytestmark = pytest.mark.usefixtures("mock_env", "reset_provider_cache")
 
 
+PRIMARY_SCENARIO_EXPECTATIONS = {
+    "scenario_1_vm_destroy": {
+        "team": "ci-team",
+        "pipeline": "destroy-loadtest",
+        "resources": {"res-loadtest-1", "res-loadtest-2"},
+    },
+    "scenario_2_tagging": {
+        "team": "release-team",
+        "pipeline": "deploy-release-prod",
+        "resources": {"res-db-prod", "res-api-1"},
+    },
+    "scenario_3_autoscaler": {
+        "team": "release-team",
+        "pipeline": "update-web-autoscaler",
+        "resources": {"web-frontend-asg", "res-web-frontend"},
+    },
+    "scenario_4_forgotten_poc": {
+        "team": "cloudops-team",
+        "pipeline": "deploy-poc-analytics",
+        "resources": {"poc-analytics-vm-1", "poc-analytics-db"},
+    },
+    "scenario_5_app_misconfig": {
+        "team": "release-team",
+        "pipeline": "deploy-release-api",
+        "resources": {"release-api", "rel-api-pods"},
+    },
+}
+
+
 def set_scenario(scenario_run):
     """Set the active scenario on thread-local global state."""
     import src.g as g_module
@@ -60,7 +89,12 @@ def test_cost_tool_get_team_spending_success(scenario_1_run):
     result = tool.get_team_spending("ci-team")
     assert isinstance(result, dict)
     assert result.get("success") is True
-    assert "budget" in result or "team_name" in result
+    assert result["team_name"] == "CI Team"
+    assert result["anomaly_detected"] is True
+    assert isinstance(result["anomaly_description"], str) and result["anomaly_description"]
+    assert isinstance(result["current_spend"], (int, float))
+    assert isinstance(result["budget_value"], (int, float))
+    assert len(result["top_resources"]) >= 2
 
 
 @pytest.mark.parametrize("team", ["ci-team", "release-team", "cloudops-team"])
@@ -118,6 +152,13 @@ def test_cost_tool_get_team_resources(scenario_1_run):
     result = tool.get_team_resources("ci-team")
     assert result.get("success") is True
     assert "resources" in result or "grouped" in result
+    assert result["resources"]
+    first = result["resources"][0]
+    assert "name" in first
+    assert "type" in first
+    assert "monthly_cost" in first
+    assert "status" in first
+    assert "utilisation" in first
 
 
 @pytest.mark.parametrize("team", ["ci-team", "release-team", "cloudops-team"])
@@ -151,6 +192,8 @@ def test_cost_tool_top_level_returns_string(scenario_1_run):
     result = cost_api_tool.invoke("ci-team spending")
     assert isinstance(result, str)
     assert len(result) > 0
+    assert "res-loadtest-1" in result
+    assert "destroy-loadtest" in result or "load-test" in result.lower()
 
 
 def test_cost_tool_all_teams_summary_without_scenario_returns_error_string():
@@ -182,6 +225,7 @@ def test_pipeline_tool_deployment_history(scenario_1_run, mock_groq):
     result = tool.get_deployment_history("ci-team")
     assert result.get("success") is True
     assert "statistics" in result
+    assert any(p.get("name") == "destroy-loadtest" for p in result["recent_pipelines"])
 
 
 @pytest.mark.parametrize("team", ["ci-team", "release-team", "cloudops-team"])
@@ -230,6 +274,10 @@ def test_pipeline_tool_top_level_returns_string(scenario_1_run, mock_groq):
     result = pipeline_tool.invoke("analyze ci-team cost impact")
     assert isinstance(result, str)
     assert len(result) > 0
+    assert "destroy-loadtest" in result
+    assert "terraform-destroy" in result
+    assert "Scenario: scenario_1_vm_destroy" in result
+    assert "Source: mock (scenario_1_vm_destroy)" in result
 
 
 def test_historical_tool_search_returns_dict(mock_groq, mock_chroma):
@@ -380,6 +428,89 @@ def test_scenario_legacy_mock_explicit_selection_keeps_legacy_values():
     assert result["budget"]["current_spend"] == "$2,650.00"
 
 
+@pytest.mark.parametrize(
+    ("scenario_id", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_scenario_team_spending_exposes_agent_contract(scenario_id, expected):
+    """Primary-team spend payloads must expose the explicit anomaly contract used by the agent."""
+    from src.scenarios import build_scenario_run
+    from src.tools.cost_api_tool import CostAPITool
+
+    set_scenario(build_scenario_run(scenario_id))
+    tool = CostAPITool()
+    result = tool.get_team_spending(expected["team"])
+
+    assert result["success"] is True
+    assert isinstance(result["team_name"], str) and result["team_name"]
+    assert isinstance(result["current_spend"], (int, float))
+    assert isinstance(result["budget_value"], (int, float))
+    assert result["anomaly_detected"] is True
+    assert isinstance(result["anomaly_description"], str) and result["anomaly_description"]
+    assert isinstance(result["top_resources"], list)
+    assert len(result["top_resources"]) >= 2
+    top_resource_names = {resource["name"] for resource in result["top_resources"]}
+    assert expected["resources"].issubset(top_resource_names)
+    assert any(float(resource["utilisation"]) <= 5.0 for resource in result["top_resources"])
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_scenario_resources_include_costs_and_utilisation(scenario_id, expected):
+    """Primary-team resource discovery must expose resource names, costs, utilisation, and at least one near-idle resource."""
+    from src.scenarios import build_scenario_run
+    from src.tools.cost_api_tool import CostAPITool
+
+    set_scenario(build_scenario_run(scenario_id))
+    tool = CostAPITool()
+    result = tool.get_team_resources(expected["team"])
+
+    assert result["success"] is True
+    resources = result["resources"]
+    resource_names = {resource["name"] for resource in resources}
+    assert expected["resources"].issubset(resource_names)
+    for resource in resources:
+        assert "name" in resource
+        assert "type" in resource
+        assert "monthly_cost" in resource
+        assert "utilisation" in resource
+        assert "status" in resource
+    assert any(
+        resource["name"] in expected["resources"] and float(resource["utilisation"]) <= 5.0
+        for resource in resources
+    )
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "expected"),
+    list(PRIMARY_SCENARIO_EXPECTATIONS.items()),
+)
+def test_primary_scenario_pipeline_contains_causal_event_and_job_evidence(scenario_id, expected, mock_groq):
+    """Primary-team pipeline history must expose the causal pipeline and failed/suspicious job evidence."""
+    pytest.importorskip("langchain_groq")
+    from src.scenarios import build_scenario_run
+    from src.tools.pipeline_tool import PipelineTool
+
+    set_scenario(build_scenario_run(scenario_id))
+    tool = PipelineTool()
+    result = tool.get_deployment_history(expected["team"])
+
+    assert result["success"] is True
+    pipelines = result["recent_pipelines"]
+    assert any(pipeline.get("name") == expected["pipeline"] for pipeline in pipelines)
+    suspicious_jobs = [
+        job
+        for pipeline in pipelines
+        for job in pipeline.get("jobs", [])
+        if job.get("status") in {"failed", "warning"} or job.get("log_excerpt")
+    ]
+    assert suspicious_jobs
+    assert any(isinstance(job.get("name"), str) and job["name"] for job in suspicious_jobs)
+    assert any(isinstance(job.get("log_excerpt", ""), str) and job.get("log_excerpt") for job in suspicious_jobs)
+
+
 def test_historical_tool_builds_scenario_hint_with_high_signal_evidence(mock_groq):
     """Scenario-aware retrieval hints should include concrete pipeline and resource anchors."""
     pytest.importorskip("langchain_groq")
@@ -437,3 +568,50 @@ def test_historical_tool_prioritize_results_prefers_matching_runbook_for_active_
 
     assert prioritized
     assert prioritized[0]["metadata"]["source"] == "data/knowledge/doc3.md"
+
+
+def test_pipeline_tool_prefers_active_scenario_even_if_live_env_is_enabled(monkeypatch, mock_groq):
+    """An active selected scenario must override live-mode drift and force scenario-backed pipeline data."""
+    pytest.importorskip("langchain_groq")
+    from src.scenarios import build_scenario_run
+    from src.tools.pipeline_tool import PipelineTool, pipeline_tool
+
+    monkeypatch.setenv("USE_LIVE_DATA", "true")
+    monkeypatch.setenv("GITLAB_TOKEN", "test-token")
+    monkeypatch.setenv("GITLAB_PROJECT_ID", "123")
+
+    set_scenario(build_scenario_run("scenario_1_vm_destroy"))
+
+    tool = PipelineTool()
+    result = tool.get_deployment_history("ci-team")
+    rendered = pipeline_tool.invoke("CI Team pipeline activity")
+
+    assert result["success"] is True
+    assert result["mode"] == "MOCK 🟡"
+    assert result["scenario_id"] == "scenario_1_vm_destroy"
+    assert result["project"] == "ci-team-infra"
+    assert result["statistics"]["total_deployments"] == 5
+    assert result["statistics"]["failed_deployments"] == 4
+    assert any(pipeline["name"] == "destroy-loadtest" for pipeline in result["recent_pipelines"])
+    assert "Scenario: scenario_1_vm_destroy" in rendered
+    assert "Source: mock (scenario_1_vm_destroy)" in rendered
+    assert "LIVE" not in rendered
+
+
+def test_cost_tool_prefers_active_scenario_even_if_live_env_is_enabled(monkeypatch):
+    """An active selected scenario must override live-mode drift and force scenario-backed cost data."""
+    from src.scenarios import build_scenario_run
+    from src.tools.cost_api_tool import CostAPITool
+
+    monkeypatch.setenv("USE_LIVE_DATA", "true")
+    monkeypatch.setenv("AZURE_SUBSCRIPTION_ID", "test-sub")
+
+    set_scenario(build_scenario_run("scenario_1_vm_destroy"))
+
+    tool = CostAPITool()
+    result = tool.get_team_spending("ci-team")
+
+    assert result["success"] is True
+    assert result["team_name"] == "CI Team"
+    assert result["current_spend"] == 7200.0
+    assert result["anomaly_detected"] is True
