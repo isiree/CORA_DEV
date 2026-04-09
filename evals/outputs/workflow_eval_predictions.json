@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-01T13:50:32.793949+00:00",
+  "generated_at": "2026-04-04T08:51:35.717345+00:00",
   "dataset_id": "imrag-mock-root-cause-starter",
   "dataset_version": "0.1.0",
   "evaluation_component": "full_mock_workflow",
@@ -16,46 +16,30 @@
         "pipeline_tool",
         "cost_api_tool"
       ],
-      "detected_intent": "ROOT_CAUSE",
+      "detected_intent": "GENERAL",
       "classifier_preview": "ROOT_CAUSE",
-      "execution_mode": "mock_direct",
-      "final_output": "The main reason for the CI Team cost spike is failed cleanup of the load-test environment. `deploy-loadtest` created the environment on January 9, 2025, but `destroy-loadtest` failed on January 10, 11, and 12 because `terraform-destroy` hit `Error acquiring the state lock`. That left the load-test VMs running and pushed daily spend from $100.00/day to $300.00/day.",
+      "execution_mode": "agent_only",
+      "final_output": "The main reason for the CI Team cost spike in Scenario 1 is the leftover load-test VMs `res-loadtest-1` and `res-loadtest-2`, which were not destroyed after failed `destroy-loadtest` runs. These VMs are costing $4,200.00/month and $4,095.00/month, respectively, leading to a significant increase in the team's daily spend from $100.00 to $300.00 after January 10, 2025.\n\nThe cost anomaly was detected on January 10, 2025, and the team's current spend is $7,200.00, which is 300.0% of the monthly budget of $2,400. The budget status is critical, and an auto-cost hold has been triggered. The forecasted spend is $8,640.00.\n\nTo remediate this issue, I recommend the following:\n\n1. **Destroy the leftover load-test VMs**: Ensure that the VMs `res-loadtest-1` and `res-loadtest-2` are properly destroyed to prevent further costs.\n2. **Review and adjust the budget**: Consider adjusting the team's budget to account for the increased spend or implement cost optimization strategies to prevent similar spikes in the future.\n\nConfidence: HIGH\n\nThe causal chain of events is as follows:\n\n1. The `deploy-loadtest` pipeline created the environment, including the load-test VMs `res-loadtest-1` and `res-loadtest-2`.\n2. The `destroy-loadtest` pipeline failed to destroy the VMs, leading to a repeated failure to clean up the resources.\n3. The leftover VMs continued to incur costs, causing the team's daily spend to spike.\n\nBy following these steps, the CI Team can mitigate the cost anomaly and prevent similar issues in the future.",
       "observed_tool_trajectory": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
       "observed_tools_used": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
-      "observed_sources": [
-        "scenario_1_vm_destroy mock pipeline data",
-        "scenario_1_vm_destroy mock cost data"
-      ],
+      "observed_sources": [],
       "steps": [
         {
           "number": 1,
-          "tool": "pipeline_tool",
-          "query": "ci-team root cause review",
-          "result_preview": "Repeated destroy-loadtest failures left the environment running.",
-          "sources": [
-            "scenario_1_vm_destroy mock pipeline data"
-          ]
-        },
-        {
-          "number": 2,
           "tool": "cost_api_tool",
-          "query": "ci-team spend delta",
-          "result_preview": "CI spend increases immediately after the failed cleanup attempts.",
-          "sources": [
-            "scenario_1_vm_destroy mock cost data"
-          ]
+          "query": "{'query': 'CI Team spending January 10, 2025'}",
+          "result_preview": "\ud83d\udcb0 COST DATA: CI Team (MOCK MOCK \ud83d\udfe1)\nLead: James Wilson\nPeriod: Last 30 days\n\n\ud83d\udcca BUDGET STATUS:\n  Monthly Budget: $2,400\n  Current Spend: $7,200.00\n  Budget Used: 300.0%\n  Status: CRITICAL - AUTO COST HOLD TRIGGERED\n  Forecast: $8,640.00\n\n\ud83d\udce6 COST BREAKDOWN:\n  compute: $5,040.00\n  storage: $1,440.00\n  network: $720.00\n\n\u26a0\ufe0f ANOMALIES:\n  - Scenario active\n  - Recent daily average increased by $200.00 versus the scenario baseline.\n\n\ud83d\udd0e SCENARIO ANOMALY:\n  Detected: True\n  Spike Date: 2025-01-10\n  Description: Load-test VMs res-loadtest-1 and res-loadtest-2 were not destroyed after failed destroy-loadtest runs.\n\n\ud83d\udd25 TOP RESOURCES:\n  - res-loadtest-1 (vm): $4,200.00/month, utilisation 1.2%\n  - res-loadtest-2 (vm): $4,095.00/month, utilisation 0.8%",
+          "sources": []
         }
       ],
       "notes": "Derived from app.py _build_mock_root_cause_result for scenario_1_vm_destroy and scenario builder resources res-loadtest-1 / res-loadtest-2.",
-      "response_match_precision": 0.666667,
-      "response_match_recall": 0.909091,
-      "response_match_f1": 0.769231,
+      "response_match_precision": 0.106952,
+      "response_match_recall": 0.606061,
+      "response_match_f1": 0.181818,
       "predicted_root_cause_label": "failed_cleanup_orphaned_resources",
       "root_cause_match": true,
       "rubric_score": 1.0,
@@ -67,11 +51,11 @@
         "clarity_confidence": 1.0
       },
       "tool_precision": 1.0,
-      "tool_recall": 1.0,
-      "tool_f1": 1.0,
-      "tool_order_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_exact_match": true
+      "tool_recall": 0.5,
+      "tool_f1": 0.666667,
+      "tool_order_score": 0.5,
+      "tool_trajectory_score": 0.583333,
+      "tool_trajectory_exact_match": false
     },
     {
       "test_id": "mock_s2_root_cause_001",
@@ -85,52 +69,49 @@
         "pipeline_tool",
         "cost_api_tool"
       ],
-      "detected_intent": "RESPONSIBILITY",
+      "detected_intent": "GENERAL",
       "classifier_preview": "RESPONSIBILITY",
-      "execution_mode": "mock_direct",
-      "final_output": "The Release Team is the team behind the Scenario 2 increase, but the spend appears as unallocated because the release deployment introduced bad tagging. `deploy-release-prod` on January 14, 2025 updated tags incorrectly, leaving one resource tagged `team=legacy` and another missing team tags entirely.",
+      "execution_mode": "agent_only",
+      "final_output": "The main root cause of the unallocated cost increase in Scenario 2 is the incorrect tagging of resources during the `deploy-release-prod` pipeline deployment on January 14, 2025. Specifically, the resource `res-db-prod` was tagged with `team=legacy`, and `res-api-1` was missing team tags. This led to a sudden increase in unallocated spend from about $10.00/day to $300.00/day after January 15, 2025.\n\nThe causal chain is as follows:\n\n1. The `deploy-release-prod` pipeline was updated on January 14, 2025, with incorrect tagging instructions.\n2. The pipeline applied the tags to `res-db-prod` and `res-api-1`, resulting in incorrect ownership metadata.\n3. As a result, the cost for these resources became unallocated, leading to a significant increase in unallocated spend.\n\nThe specific cost figures are:\n\n* Current spend: $4,500.00\n* Budget used: 187.5%\n* Top resources:\n\t+ `res-db-prod`: $3,100.00/month, utilisation 41.0%\n\t+ `res-api-1`: $1,450.00/month, utilisation 3.5%\n\nThe confidence level for this investigation is HIGH, as the data from the cost API tool and pipeline tool clearly indicate the root cause of the issue.\n\nRemediation steps:\n\n1. Correct the tagging of `res-db-prod` and `res-api-1` to reflect the correct team ownership.\n2. Update the `deploy-release-prod` pipeline to ensure accurate tagging instructions.\n3. Monitor the cost and budget status to ensure that the unallocated spend returns to normal levels.",
       "observed_tool_trajectory": [
         "cost_api_tool",
         "pipeline_tool"
       ],
       "observed_tools_used": [
-        "cost_api_tool",
-        "pipeline_tool"
+        "pipeline_tool",
+        "cost_api_tool"
       ],
       "observed_sources": [
-        "scenario_2_tagging mock cost data",
-        "scenario_2_tagging mock pipeline data"
+        "mock (scenario_2_tagging"
       ],
       "steps": [
         {
           "number": 1,
           "tool": "cost_api_tool",
-          "query": "subscription ownership review",
-          "result_preview": "Unallocated spend increases sharply after January 15, 2025.",
-          "sources": [
-            "scenario_2_tagging mock cost data"
-          ]
+          "query": "{'query': 'Release Team unallocated spend January 2025'}",
+          "result_preview": "\ud83d\udcb0 COST DATA: Release Team (MOCK MOCK \ud83d\udfe1)\nLead: Alex Johnson\nPeriod: Last 30 days\n\n\ud83d\udcca BUDGET STATUS:\n  Monthly Budget: $2,400\n  Current Spend: $4,500.00\n  Budget Used: 187.5%\n  Status: CRITICAL - AUTO COST HOLD TRIGGERED\n  Forecast: $5,400.00\n\n\ud83d\udce6 COST BREAKDOWN:\n  compute: $3,000.00\n  storage: $900.00\n  network: $600.00\n\n\u26a0\ufe0f ANOMALIES:\n  - Scenario active\n\n\ud83d\udd0e SCENARIO ANOMALY:\n  Detected: True\n  Spike Date: 2025-01-15\n  Description: Release Team spend became unallocated because res-db-prod was tagged team=legacy and res-api-1 was missing team tags.\n\n\ud83d\udd25 TOP RESOURCES:\n  - res-db-prod (db): $3,100.00/month, utilisation 41.0%\n  - res-api-1 (vm): $1,450.00/month, utilisation 3.5%",
+          "sources": []
         },
         {
           "number": 2,
           "tool": "pipeline_tool",
-          "query": "release-team deployment review",
-          "result_preview": "deploy-release-prod introduced the tagging error.",
+          "query": "{'query': 'Release Team deployments January 14 2025'}",
+          "result_preview": "\ud83d\ude80 DEPLOYMENT HISTORY: Release Team (MOCK \ud83d\udfe1)\nProject: release-team-infra\nPeriod: Last 7 days\nScenario: scenario_2_tagging\nSource: mock (scenario_2_tagging)\n\n\ud83d\udcc8 STATISTICS:\n  Total Deployments: 2\n  Failed Deployments: 1\n  Success Rate: 50.0%\n\n\ud83d\udd04 RECENT PIPELINES:\n  #pipe-validate-rel-tags validate-release-tags (2025-01-14T09:30:00) [failed]\n    Summary: No message\n    Job: tag-policy-check [failed] - Invalid ownership metadata detected: team=legacy on res-db-prod and missing team tag on res-api-1.\n  #pipe-deploy-rel deploy-release-prod (2025-01-14T10:00:00) [success]\n    Summary: No message\n    Job: terraform-apply [success] - Updating tags... team=legacy\n    Job: tag-sync [success] - Applied tags to res-db-prod and res-api-1 with invalid ownership metadata.",
           "sources": [
-            "scenario_2_tagging mock pipeline data"
+            "mock (scenario_2_tagging"
           ]
         }
       ],
       "notes": "expected_service is modeled as a service-like control-plane category because this scenario is a cost-allocation issue, not a single runtime workload.",
-      "response_match_precision": 0.5,
-      "response_match_recall": 0.5625,
-      "response_match_f1": 0.529412,
+      "response_match_precision": 0.108571,
+      "response_match_recall": 0.59375,
+      "response_match_f1": 0.183575,
       "predicted_root_cause_label": "tagging_regression_misattribution",
       "root_cause_match": true,
-      "rubric_score": 1.0,
+      "rubric_score": 0.8,
       "rubric_breakdown": {
         "cause_correctness": 1.0,
-        "team_grounding": 1.0,
+        "team_grounding": 0.0,
         "service_grounding": 1.0,
         "evidence_grounding": 1.0,
         "clarity_confidence": 1.0
@@ -154,62 +135,46 @@
         "pipeline_tool",
         "cost_api_tool"
       ],
-      "detected_intent": "ROOT_CAUSE",
+      "detected_intent": "GENERAL",
       "classifier_preview": "ROOT_CAUSE",
-      "execution_mode": "mock_direct",
-      "final_output": "The main reason is a bad autoscaler configuration change. `update-web-autoscaler` on January 9, 2025 was followed by `web-frontend-asg` scaling from 4 to 12 instances on January 10 with no scale-down, creating sustained excess compute cost.",
+      "execution_mode": "agent_only",
+      "final_output": "The main reason for the Release Team cost spike in Scenario 3 is the autoscaler change that left the `web-frontend-asg` and `res-web-frontend` resources scaled out after January 10, 2025. This change resulted in a significant increase in daily spend from $150.00 to $450.00.\n\nThe cost data shows that the `web-frontend-asg` and `res-web-frontend` resources are the top contributors to the increased spend, with costs of $5,200.00/month and $4,700.00/month, respectively. The utilisation data indicates that `web-frontend-asg` is utilised at 94.0%, while `res-web-frontend` is utilised at 3.8%.\n\nThe pipeline event `update-web-autoscaler` on January 9, 2025, preceded the sustained scale-out, suggesting a causal link between the autoscaler change and the cost spike.\n\nConfidence: HIGH\n\nRemediation: \n1. Review the autoscaler configuration for `web-frontend-asg` and `res-web-frontend` to ensure it is properly set up to scale down when needed.\n2. Consider implementing a more dynamic scaling strategy to avoid similar cost spikes in the future.\n3. Monitor the utilisation of these resources closely to ensure they are not over-provisioned.",
       "observed_tool_trajectory": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
       "observed_tools_used": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
-      "observed_sources": [
-        "scenario_3_autoscaler mock pipeline data",
-        "scenario_3_autoscaler mock cost data"
-      ],
+      "observed_sources": [],
       "steps": [
         {
           "number": 1,
-          "tool": "pipeline_tool",
-          "query": "release-team root cause review",
-          "result_preview": "Autoscaler update preceded the permanent scale-out.",
-          "sources": [
-            "scenario_3_autoscaler mock pipeline data"
-          ]
-        },
-        {
-          "number": 2,
           "tool": "cost_api_tool",
-          "query": "release-team compute trend",
-          "result_preview": "Release compute spend stays elevated after the scale-out.",
-          "sources": [
-            "scenario_3_autoscaler mock cost data"
-          ]
+          "query": "{'query': 'Release Team spending around January 10, 2025'}",
+          "result_preview": "\ud83d\udcb0 COST DATA: Release Team (MOCK MOCK \ud83d\udfe1)\nLead: Alex Johnson\nPeriod: Last 30 days\n\n\ud83d\udcca BUDGET STATUS:\n  Monthly Budget: $2,400\n  Current Spend: $10,800.00\n  Budget Used: 450.0%\n  Status: CRITICAL - AUTO COST HOLD TRIGGERED\n  Forecast: $12,960.00\n\n\ud83d\udce6 COST BREAKDOWN:\n  compute: $7,560.00\n  storage: $2,160.00\n  network: $1,080.00\n\n\u26a0\ufe0f ANOMALIES:\n  - Scenario active\n  - Recent daily average increased by $300.00 versus the scenario baseline.\n\n\ud83d\udd0e SCENARIO ANOMALY:\n  Detected: True\n  Spike Date: 2025-01-10\n  Description: Autoscaler change left web-frontend-asg / res-web-frontend scaled out after January 10, 2025.\n\n\ud83d\udd25 TOP RESOURCES:\n  - web-frontend-asg (autoscaler): $5,200.00/month, utilisation 94.0%\n  - res-web-frontend (vmss): $4,700.00/month, utilisation 3.8%",
+          "sources": []
         }
       ],
       "notes": "Ground truth comes from app.py scenario 3 root-cause summary and the scenario resource metrics for res-web-frontend / web-frontend-asg.",
-      "response_match_precision": 0.821429,
-      "response_match_recall": 0.741935,
-      "response_match_f1": 0.779661,
+      "response_match_precision": 0.148148,
+      "response_match_recall": 0.645161,
+      "response_match_f1": 0.240964,
       "predicted_root_cause_label": "autoscaler_no_scale_down",
       "root_cause_match": true,
-      "rubric_score": 0.8,
+      "rubric_score": 1.0,
       "rubric_breakdown": {
         "cause_correctness": 1.0,
-        "team_grounding": 0.0,
+        "team_grounding": 1.0,
         "service_grounding": 1.0,
         "evidence_grounding": 1.0,
         "clarity_confidence": 1.0
       },
       "tool_precision": 1.0,
-      "tool_recall": 1.0,
-      "tool_f1": 1.0,
-      "tool_order_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_exact_match": true
+      "tool_recall": 0.5,
+      "tool_f1": 0.666667,
+      "tool_order_score": 0.5,
+      "tool_trajectory_score": 0.583333,
+      "tool_trajectory_exact_match": false
     },
     {
       "test_id": "mock_s4_root_cause_001",
@@ -223,62 +188,46 @@
         "pipeline_tool",
         "cost_api_tool"
       ],
-      "detected_intent": "ROOT_CAUSE",
+      "detected_intent": "GENERAL",
       "classifier_preview": "ROOT_CAUSE",
-      "execution_mode": "mock_direct",
-      "final_output": "The main reason is a forgotten proof-of-concept environment. `deploy-poc-analytics` created resources that remained active after January 14, 2025, while the dashboard POC was actually destroyed successfully. The spike comes from abandoned analytics resources, not the decoy dashboard workflow.",
+      "execution_mode": "agent_only",
+      "final_output": "The main reason for the CloudOps Team cost spike in Scenario 4 is that the POC analytics resources `poc-analytics-vm-1` and `poc-analytics-db` were left active and idle after January 15, 2025, causing a significant increase in daily spend from $200.00 to $500.00. \n\nThese resources, specifically the virtual machine `poc-analytics-vm-1` and database `poc-analytics-db`, were not cleaned up after the proof of concept (POC) should have ended, leading to unnecessary costs. The virtual machine is incurring a monthly cost of $3,600.00 with a utilisation of only 0.4%, and the database is costing $1,800.00 per month with a utilisation of 1.1%. \n\nThe spike was detected on January 15, 2025, and the current spend is $10,800.00, which is 300% of the monthly budget of $3,600. The forecast for the next period is $12,960.00, indicating a continued risk of overspending. \n\nTo remediate, it is recommended to immediately terminate or properly manage these idle resources to prevent further unnecessary costs. \n\nConfidence: HIGH \n\nRemediation: \n1. Terminate `poc-analytics-vm-1` and `poc-analytics-db` immediately.\n2. Review and adjust the budget and spending thresholds for the CloudOps Team to prevent similar anomalies in the future.",
       "observed_tool_trajectory": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
       "observed_tools_used": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
-      "observed_sources": [
-        "scenario_4_forgotten_poc mock pipeline data",
-        "scenario_4_forgotten_poc mock cost data"
-      ],
+      "observed_sources": [],
       "steps": [
         {
           "number": 1,
-          "tool": "pipeline_tool",
-          "query": "cloudops-team root cause review",
-          "result_preview": "deploy-poc-analytics remained active after the POC should have ended.",
-          "sources": [
-            "scenario_4_forgotten_poc mock pipeline data"
-          ]
-        },
-        {
-          "number": 2,
           "tool": "cost_api_tool",
-          "query": "cloudops-team idle footprint",
-          "result_preview": "POC analytics resources show negligible utilization but continued spend.",
-          "sources": [
-            "scenario_4_forgotten_poc mock cost data"
-          ]
+          "query": "{'query': 'CloudOps Team spending around January 15, 2025'}",
+          "result_preview": "\ud83d\udcb0 COST DATA: CloudOps Team (MOCK MOCK \ud83d\udfe1)\nLead: David Brown\nPeriod: Last 30 days\n\n\ud83d\udcca BUDGET STATUS:\n  Monthly Budget: $3,600\n  Current Spend: $10,800.00\n  Budget Used: 300.0%\n  Status: CRITICAL - AUTO COST HOLD TRIGGERED\n  Forecast: $12,960.00\n\n\ud83d\udce6 COST BREAKDOWN:\n  compute: $7,560.00\n  storage: $2,160.00\n  network: $1,080.00\n\n\u26a0\ufe0f ANOMALIES:\n  - Scenario active\n  - Recent daily average increased by $300.00 versus the scenario baseline.\n\n\ud83d\udd0e SCENARIO ANOMALY:\n  Detected: True\n  Spike Date: 2025-01-15\n  Description: POC analytics resources poc-analytics-vm-1 and poc-analytics-db were never cleaned up and stayed idle after January 15, 2025.\n\n\ud83d\udd25 TOP RESOURCES:\n  - poc-analytics-vm-1 (vm): $3,600.00/month, utilisation 0.4%\n  - poc-analytics-db (db): $1,800.00/month, utilisation 1.1%",
+          "sources": []
         }
       ],
       "notes": "Derived from app.py scenario 4 root-cause answer and scenario resources poc-analytics-vm-1 and poc-analytics-db.",
-      "response_match_precision": 0.689655,
-      "response_match_recall": 0.714286,
-      "response_match_f1": 0.701754,
+      "response_match_precision": 0.111111,
+      "response_match_recall": 0.571429,
+      "response_match_f1": 0.186047,
       "predicted_root_cause_label": "forgotten_poc_environment",
       "root_cause_match": true,
-      "rubric_score": 0.8,
+      "rubric_score": 0.866667,
       "rubric_breakdown": {
         "cause_correctness": 1.0,
-        "team_grounding": 0.0,
+        "team_grounding": 1.0,
         "service_grounding": 1.0,
-        "evidence_grounding": 1.0,
+        "evidence_grounding": 0.333333,
         "clarity_confidence": 1.0
       },
       "tool_precision": 1.0,
-      "tool_recall": 1.0,
-      "tool_f1": 1.0,
-      "tool_order_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_exact_match": true
+      "tool_recall": 0.5,
+      "tool_f1": 0.666667,
+      "tool_order_score": 0.5,
+      "tool_trajectory_score": 0.583333,
+      "tool_trajectory_exact_match": false
     },
     {
       "test_id": "mock_s5_root_cause_001",
@@ -292,62 +241,50 @@
         "pipeline_tool",
         "cost_api_tool"
       ],
-      "detected_intent": "ROOT_CAUSE",
+      "detected_intent": "GENERAL",
       "classifier_preview": "ROOT_CAUSE",
-      "execution_mode": "mock_direct",
-      "final_output": "The main reason is an application configuration mistake in `deploy-release-api`. The January 19, 2025 rollout set `MAX_WORKERS=500`, which triggered a pod-count surge and retry storm. This is an app-driven scaling problem rather than an orphaned infrastructure issue.",
+      "execution_mode": "agent_only",
+      "final_output": "The main reason for the Release Team cost spike in Scenario 5 is the misconfiguration of `MAX_WORKERS=500` in the `deploy-release-api` pipeline on January 19, 2025. This caused the `release-api` and `rel-api-pods` resources to scale excessively, leading to a significant increase in daily spend from $150.00 to $600.00.\n\nKey evidence:\n- The `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.\n- The `release-api` service cost $5,400.00/month with 88.0% utilisation.\n- The `rel-api-pods` (k8s-pod-set) cost $6,200.00/month with 2.4% utilisation.\n\nThe causal chain:\n1. `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.\n2. This caused `release-api` and `rel-api-pods` to scale excessively.\n3. The scaling led to a significant increase in compute costs.\n\nConfidence: HIGH\n\nRemediation:\n1. Review and adjust the `MAX_WORKERS` configuration in the `deploy-release-api` pipeline to a more suitable value based on historical demand.\n2. Monitor the `release-api` and `rel-api-pods` resources for utilisation and adjust as necessary to prevent over-scaling.",
       "observed_tool_trajectory": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
       "observed_tools_used": [
-        "pipeline_tool",
         "cost_api_tool"
       ],
       "observed_sources": [
-        "scenario_5_app_misconfig mock pipeline data",
-        "scenario_5_app_misconfig mock cost data"
+        "The `deploy-release-api` pipeline event on January 19, 2025, set `MAX_WORKERS=500`.",
+        "The `release-api` service cost $5,400.00/month with 88.0% utilisation.",
+        "The `rel-api-pods` (k8s-pod-set) cost $6,200.00/month with 2.4% utilisation."
       ],
       "steps": [
         {
           "number": 1,
-          "tool": "pipeline_tool",
-          "query": "release-team root cause review",
-          "result_preview": "deploy-release-api changed runtime behavior and triggered excess scaling.",
-          "sources": [
-            "scenario_5_app_misconfig mock pipeline data"
-          ]
-        },
-        {
-          "number": 2,
           "tool": "cost_api_tool",
-          "query": "release-team pod scaling review",
-          "result_preview": "Release API pod count and compute spend jump after the config rollout.",
-          "sources": [
-            "scenario_5_app_misconfig mock cost data"
-          ]
+          "query": "{'query': 'Release Team spending after January 20, 2025'}",
+          "result_preview": "\ud83d\udcb0 COST DATA: Release Team (MOCK MOCK \ud83d\udfe1)\nLead: Alex Johnson\nPeriod: Last 30 days\n\n\ud83d\udcca BUDGET STATUS:\n  Monthly Budget: $2,400\n  Current Spend: $9,450.00\n  Budget Used: 393.8%\n  Status: CRITICAL - AUTO COST HOLD TRIGGERED\n  Forecast: $11,340.00\n\n\ud83d\udce6 COST BREAKDOWN:\n  compute: $6,615.00\n  storage: $1,890.00\n  network: $945.00\n\n\u26a0\ufe0f ANOMALIES:\n  - Scenario active\n  - Recent daily average increased by $450.00 versus the scenario baseline.\n\n\ud83d\udd0e SCENARIO ANOMALY:\n  Detected: True\n  Spike Date: 2025-01-20\n  Description: MAX_WORKERS=500 in deploy-release-api caused release-api / rel-api-pods to scale far beyond normal demand.\n\n\ud83d\udd25 TOP RESOURCES:\n  - release-api (service): $5,400.00/month, utilisation 88.0%\n  - rel-api-pods (k8s-pod-set): $6,200.00/month, utilisation 2.4%",
+          "sources": []
         }
       ],
       "notes": "Ground truth is based on app.py scenario 5 root-cause logic and the scenario resource rel-api-pods / release-api metrics.",
-      "response_match_precision": 0.655172,
-      "response_match_recall": 0.678571,
-      "response_match_f1": 0.666667,
+      "response_match_precision": 0.123188,
+      "response_match_recall": 0.607143,
+      "response_match_f1": 0.204819,
       "predicted_root_cause_label": "application_misconfiguration_over_scaling",
       "root_cause_match": true,
-      "rubric_score": 0.8,
+      "rubric_score": 1.0,
       "rubric_breakdown": {
         "cause_correctness": 1.0,
-        "team_grounding": 0.0,
+        "team_grounding": 1.0,
         "service_grounding": 1.0,
         "evidence_grounding": 1.0,
         "clarity_confidence": 1.0
       },
       "tool_precision": 1.0,
-      "tool_recall": 1.0,
-      "tool_f1": 1.0,
-      "tool_order_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_exact_match": true
+      "tool_recall": 0.5,
+      "tool_f1": 0.666667,
+      "tool_order_score": 0.5,
+      "tool_trajectory_score": 0.583333,
+      "tool_trajectory_exact_match": false
     }
   ]
 }
