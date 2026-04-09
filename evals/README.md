@@ -1,8 +1,8 @@
 # Evaluation Usage
 
-This folder now contains two evaluation runners built on the same fixed mock-scenario dataset:
+This folder now contains evaluation runners built on the same fixed mock-scenario dataset:
 
-- RCA evaluation for deterministic root-cause labeling
+- RCA evaluation for agent-generated root-cause labeling
 - RAG evaluation for the historical document retrieval + answer synthesis path
 - Workflow evaluation for the full mock investigation path in `app.py`
 
@@ -31,9 +31,9 @@ The RCA runner writes these files under `evals/outputs/`:
 
 ### RCA Assumption
 
-For the five numbered mock scenarios, the RCA runner evaluates the canonical deterministic mock root-cause function in `app.py`.
+For the five numbered mock scenarios, the RCA runner now evaluates the current agent-only mock workflow in `app.py`.
 
-It does not stand up the full LangChain fallback agent, because that is not the primary RCA path for these mock cases today.
+It extracts the RCA label from the final agent answer rather than calling the old deterministic root-cause builder directly.
 
 ### RCA Label Extraction
 
@@ -123,7 +123,7 @@ If RAGAS cannot run, the runner writes the same output files using a local heuri
 The workflow runner evaluates the full mock investigation path for each fixed dataset case:
 
 1. classify the user query
-2. run the current mock workflow dispatch in `app.py`
+2. run the current agent-only mock workflow in `app.py`
 3. capture the final answer, tool usage, and step trajectory
 4. score response match, rubric quality, and tool trajectory
 
@@ -155,7 +155,7 @@ The current workflow evaluator is local and structured rather than ADK-backed. I
 Per-case outputs also include:
 
 - detected intent
-- execution mode (`mock_direct` vs `fallback_agent`)
+- execution mode (`agent_only`, plus any benchmark-specific suffixes)
 - predicted root-cause label
 - rubric breakdown
 - observed tool steps and sources
@@ -183,7 +183,7 @@ To refresh RCA, RAG, workflow, benchmarking, and thesis-ready tables in one comm
 The workflow runner evaluates the end-to-end app workflow for each fixed eval case:
 
 1. classify the query
-2. run the same mock/direct or fallback-agent dispatch path used by `app.py`
+2. run the same agent-only mock dispatch path used by `app.py`
 3. score the final answer against the dataset reference answer
 4. score the observed tool trajectory against `expected_tool_trajectory`
 
@@ -215,7 +215,7 @@ The local structured evaluator records:
 Per-case outputs also include:
 
 - detected intent
-- execution mode (`mock_direct` or `fallback_agent`)
+- execution mode (`agent_only` or a benchmark-specific derivative)
 - predicted root-cause label extracted from the final response
 - rubric breakdown
 - observed tools, steps, and sources

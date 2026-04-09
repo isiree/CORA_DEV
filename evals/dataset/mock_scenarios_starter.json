@@ -1,7 +1,7 @@
 {
   "dataset_id": "imrag-mock-root-cause-starter",
   "version": "0.1.0",
-  "description": "Starter evaluation dataset for the five numbered mock scenarios. Ground truth is derived from the scenario builders in src/scenarios/__init__.py and the deterministic mock root-cause path in app.py.",
+  "description": "Starter evaluation dataset for the five numbered mock scenarios. Ground truth is derived from the scenario builders in src/scenarios/__init__.py and is now evaluated through the agent-only mock workflow in app.py.",
   "cases": [
     {
       "test_id": "mock_s1_root_cause_001",
